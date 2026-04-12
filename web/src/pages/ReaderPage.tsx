@@ -47,6 +47,10 @@ export function ReaderPage() {
   const initialScrollDoneRef = useRef(false);
   const pendingRestoreRef = useRef<PendingRestore | null>(null);
   const trackedScrollProgressRef = useRef<{ page: number; position: number }>({ page: 1, position: 0 });
+  const previousLayoutRef = useRef<{ pageRenderWidth: number; documentHandle: PdfDocumentHandle | null }>({
+    pageRenderWidth: 0,
+    documentHandle: null,
+  });
   const [state, setState] = useState<ReaderState | null>(null);
   const [loadingMessage, setLoadingMessage] = useState("Checking latest progress...");
   const [error, setError] = useState<string | null>(null);
@@ -328,6 +332,18 @@ export function ReaderPage() {
       return;
     }
 
+    const previousLayout = previousLayoutRef.current;
+    const documentChanged = previousLayout.documentHandle !== state.documentHandle;
+    const widthChanged = previousLayout.pageRenderWidth !== pageRenderWidth;
+    previousLayoutRef.current = {
+      pageRenderWidth,
+      documentHandle: state.documentHandle,
+    };
+
+    if (!widthChanged || documentChanged) {
+      return;
+    }
+
     const tracked = trackedScrollProgressRef.current;
     const timeout = window.setTimeout(() => {
       const target = pageRefs.current.get(tracked.page);
@@ -342,7 +358,7 @@ export function ReaderPage() {
     }, 0);
 
     return () => window.clearTimeout(timeout);
-  }, [pageRenderWidth, readerMode, state?.currentPage, state?.documentHandle]);
+  }, [pageRenderWidth, readerMode, state?.documentHandle]);
 
   useEffect(() => {
     if (!bookId || !state) {
