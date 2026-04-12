@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { ProgressRecord } from "@minibook/shared-types";
 import { openLocalBook, saveBookProgress } from "@/lib/library";
 import { loadPdfDocument, renderPdfPage, type PdfDocumentHandle } from "@/lib/pdf";
+
+type ReaderMode = "flip" | "scroll";
+type ReaderTheme = "light" | "sepia" | "slate";
 
 type ReaderState = {
   title: string;
@@ -12,15 +15,34 @@ type ReaderState = {
   documentHandle: PdfDocumentHandle;
 };
 
+const READER_MODE_KEY = "minibook:reader-mode";
+const READER_ZOOM_KEY = "minibook:reader-zoom";
+const READER_THEME_KEY = "minibook:reader-theme";
+
 export function ReaderPage() {
   const { bookId } = useParams();
   const navigate = useNavigate();
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const pageWrapRef = useRef<HTMLDivElement | null>(null);
-  const renderRunRef = useRef(0);
+  const pageRefs = useRef(new Map<number, HTMLDivElement>());
   const [state, setState] = useState<ReaderState | null>(null);
   const [loadingMessage, setLoadingMessage] = useState("Checking latest progress...");
   const [error, setError] = useState<string | null>(null);
+  const [readerMode, setReaderMode] = useState<ReaderMode>(() => readStoredReaderMode());
+  const [zoom, setZoom] = useState<number>(() => readStoredZoom());
+  const [theme, setTheme] = useState<ReaderTheme>(() => readStoredTheme());
+  const [showAppearanceMenu, setShowAppearanceMenu] = useState(false);
+  const initialScrollDoneRef = useRef(false);
+
+  useEffect(() => {
+    localStorage.setItem(READER_MODE_KEY, readerMode);
+  }, [readerMode]);
+
+  useEffect(() => {
+    localStorage.setItem(READER_ZOOM_KEY, String(zoom));
+  }, [zoom]);
+
+  useEffect(() => {
+    localStorage.setItem(READER_THEME_KEY, theme);
+  }, [theme]);
 
   useEffect(() => {
     if (!bookId) {
@@ -28,9 +50,9 @@ export function ReaderPage() {
       return;
     }
 
-    const currentBookId: string = bookId;
-
+    const currentBookId = bookId;
     let disposed = false;
+    initialScrollDoneRef.current = false;
 
     async function load() {
       try {
@@ -64,42 +86,66 @@ export function ReaderPage() {
   }, [bookId, navigate]);
 
   useEffect(() => {
-    const readerState = state;
-    const canvas = canvasRef.current;
-    const pageWrap = pageWrapRef.current;
-
-    if (!readerState || !canvas || !pageWrap) {
+    if (!state) {
       return;
     }
 
-    let cancelled = false;
-    const renderRunId = ++renderRunRef.current;
-
-    async function drawPage() {
-      try {
-        const width = Math.min(pageWrap!.clientWidth, 880) - 64;
-        await renderPdfPage(canvas!, readerState!.documentHandle, readerState!.currentPage, width);
-
-        if (cancelled || renderRunRef.current !== renderRunId) {
-          return;
-        }
-      } catch (caught) {
-        const isRenderCancellation =
-          caught instanceof Error &&
-          (caught.name === "RenderingCancelledException" || caught.message.includes("multiple render() operations"));
-
-        if (!cancelled && !isRenderCancellation) {
-          setError(caught instanceof Error ? caught.message : "Unable to render the current page.");
-        }
-      }
+    if (readerMode !== "scroll") {
+      return;
     }
 
-    void drawPage();
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries
+          .filter((entry) => entry.isIntersecting)
+          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
 
-    return () => {
-      cancelled = true;
-    };
-  }, [state?.documentHandle, state?.currentPage]);
+        if (!visible) {
+          return;
+        }
+
+        const page = Number((visible.target as HTMLElement).dataset.pageNumber);
+        if (!Number.isFinite(page)) {
+          return;
+        }
+
+        setState((current) => {
+          if (!current || current.currentPage === page) {
+            return current;
+          }
+
+          return {
+            ...current,
+            currentPage: page,
+          };
+        });
+      },
+      {
+        root: null,
+        threshold: [0.55, 0.7, 0.9],
+      },
+    );
+
+    for (const element of pageRefs.current.values()) {
+      observer.observe(element);
+    }
+
+    return () => observer.disconnect();
+  }, [readerMode, state?.documentHandle, state?.totalPages]);
+
+  useEffect(() => {
+    if (!state || readerMode !== "scroll" || initialScrollDoneRef.current) {
+      return;
+    }
+
+    const target = pageRefs.current.get(state.currentPage);
+    if (!target) {
+      return;
+    }
+
+    target.scrollIntoView({ block: "center" });
+    initialScrollDoneRef.current = true;
+  }, [readerMode, state?.currentPage, state?.documentHandle]);
 
   useEffect(() => {
     if (!bookId || !state) {
@@ -145,6 +191,25 @@ export function ReaderPage() {
     };
   }, [bookId, state]);
 
+  function moveRelative(delta: -1 | 1) {
+    setState((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const nextPage = clamp(current.currentPage + delta, 1, current.totalPages);
+
+      if (readerMode === "scroll") {
+        pageRefs.current.get(nextPage)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+
+      return {
+        ...current,
+        currentPage: nextPage,
+      };
+    });
+  }
+
   if (error) {
     return (
       <div className="reader-shell">
@@ -153,12 +218,7 @@ export function ReaderPage() {
             <div className="empty-state-card">
               <h2>Reader unavailable</h2>
               <p>{error}</p>
-              <Link
-                className="primary-button"
-                to="/"
-              >
-                Return to library
-              </Link>
+              <Link className="primary-button" to="/">Return to library</Link>
             </div>
           </div>
         </div>
@@ -170,145 +230,149 @@ export function ReaderPage() {
     return (
       <div className="reader-shell">
         <header className="reader-topbar">
-          <Link
-            className="tertiary-button"
-            to="/"
-          >
-            <MaterialIcon>arrow_back</MaterialIcon>
-            <span>Library</span>
-          </Link>
-        </header>
-        <main className="reader-main">
-          <section className="page-panel">
-            <div className="page-stage">
-              <div className="page-paper page-loading">{loadingMessage}</div>
+          <div className="reader-topbar-left">
+            <Link className="icon-button reader-nav-button" to="/">
+              <MaterialIcon>arrow_back</MaterialIcon>
+            </Link>
+            <div className="reader-title">
+              <h1>Opening book</h1>
+              <span>{loadingMessage}</span>
             </div>
-          </section>
+          </div>
+        </header>
+        <main className="reader-main reader-main-centered">
+          <div className="page-stack">
+            <div className="page-paper page-loading">{loadingMessage}</div>
+          </div>
         </main>
       </div>
     );
   }
 
   const percent = Math.round((state.currentPage / state.totalPages) * 100);
+  const pages = range(state.totalPages);
+  const shellClass = `reader-shell reader-theme-${theme}`;
 
   return (
-    <div className="reader-shell">
+    <div className={shellClass}>
       <header className="reader-topbar">
-        <div className="reader-title">
-          <Link
-            className="tertiary-button"
-            to="/"
-          >
+        <div className="reader-topbar-left">
+          <Link className="icon-button reader-nav-button" to="/">
             <MaterialIcon>arrow_back</MaterialIcon>
-            <span>Library</span>
           </Link>
-          <h1>{state.title}</h1>
-          <span>Checking local-first reading progress</span>
+
+          <div className="reader-title">
+            <h1>{state.title}</h1>
+            <span>{readerMode === "scroll" ? "Continuous Scroll" : "Page Flip"} mode</span>
+          </div>
         </div>
 
-        <div className="reader-controls">
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() =>
-              setState((current) =>
-                current
-                  ? {
-                      ...current,
-                      currentPage: Math.max(1, current.currentPage - 1),
-                    }
-                  : current,
-              )
-            }
-            aria-label="Previous page"
-          >
-            <MaterialIcon>chevron_left</MaterialIcon>
-          </button>
-          <div style={{ minWidth: "6.25rem", textAlign: "center", fontWeight: 600 }}>
-            {state.currentPage} / {state.totalPages}
+        <div className="reader-toolbar">
+          <div className="reader-controls">
+            <button type="button" className="icon-button" onClick={() => setZoom((value) => clamp(value - 0.1, 0.8, 1.8))}>
+              <MaterialIcon>remove</MaterialIcon>
+            </button>
+            <div className="reader-zoom-label">{Math.round(zoom * 100)}%</div>
+            <button type="button" className="icon-button" onClick={() => setZoom((value) => clamp(value + 0.1, 0.8, 1.8))}>
+              <MaterialIcon>add</MaterialIcon>
+            </button>
           </div>
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() =>
-              setState((current) =>
-                current
-                  ? {
-                      ...current,
-                      currentPage: Math.min(current.totalPages, current.currentPage + 1),
-                    }
-                  : current,
-              )
-            }
-            aria-label="Next page"
-          >
-            <MaterialIcon>chevron_right</MaterialIcon>
-          </button>
+
+          <div className="reader-controls">
+            <button
+              type="button"
+              className={`reader-pill-button${readerMode === "flip" ? " active" : ""}`}
+              onClick={() => setReaderMode("flip")}
+            >
+              Page Flip
+            </button>
+            <button
+              type="button"
+              className={`reader-pill-button${readerMode === "scroll" ? " active" : ""}`}
+              onClick={() => setReaderMode("scroll")}
+            >
+              Scroll
+            </button>
+          </div>
+
+          <div className="reader-controls">
+            <button type="button" className="icon-button" onClick={() => setShowAppearanceMenu((value) => !value)}>
+              <MaterialIcon>contrast</MaterialIcon>
+            </button>
+          </div>
         </div>
       </header>
 
-      <main className="reader-main">
-        <section className="page-panel">
-          <div
-            className="page-stage"
-            ref={pageWrapRef}
-          >
-            <div className="page-paper">
-              <canvas ref={canvasRef} />
-            </div>
-          </div>
-        </section>
-
-        <aside className="reader-sidepanel">
-          <h2>Session Notes</h2>
-          <dl>
-            <div>
-              <dt>Source</dt>
-              <dd>Local browser storage</dd>
-            </div>
-            <div>
-              <dt>Resume point</dt>
-              <dd>{state.progress ? `Restored page ${state.progress.page}` : "Started from page 1"}</dd>
-            </div>
-            <div>
-              <dt>Sync status</dt>
-              <dd>Saved locally first. Drive sync is not connected yet.</dd>
-            </div>
-            <div>
-              <dt>Book position</dt>
-              <dd>{percent}% complete</dd>
-            </div>
-          </dl>
-
-          <div className="reader-actions" style={{ marginTop: "1.5rem" }}>
+      {showAppearanceMenu ? (
+        <div className="reader-appearance-menu">
+          <div className="reader-appearance-title">Appearance</div>
+          <div className="reader-appearance-swatches">
             <button
               type="button"
-              className="secondary-button"
-              onClick={() =>
-                setState((current) =>
-                  current
-                    ? {
-                        ...current,
-                        currentPage: 1,
-                      }
-                    : current,
-                )
-              }
-            >
-              <MaterialIcon>first_page</MaterialIcon>
-              <span>Start Over</span>
-            </button>
+              className={`reader-swatch reader-swatch-light${theme === "light" ? " active" : ""}`}
+              onClick={() => setTheme("light")}
+              aria-label="Light theme"
+            />
+            <button
+              type="button"
+              className={`reader-swatch reader-swatch-sepia${theme === "sepia" ? " active" : ""}`}
+              onClick={() => setTheme("sepia")}
+              aria-label="Sepia theme"
+            />
+            <button
+              type="button"
+              className={`reader-swatch reader-swatch-slate${theme === "slate" ? " active" : ""}`}
+              onClick={() => setTheme("slate")}
+              aria-label="Slate theme"
+            />
           </div>
-        </aside>
+        </div>
+      ) : null}
+
+      <main className="reader-main reader-main-centered">
+        {readerMode === "flip" ? (
+          <div className="page-stack">
+            <PageCanvas
+              key={`flip-${state.currentPage}`}
+              documentHandle={state.documentHandle}
+              pageNumber={state.currentPage}
+              zoom={zoom}
+              onMount={(element) => bindPageRef(pageRefs.current, state.currentPage, element)}
+            />
+          </div>
+        ) : (
+          <div className="page-stack continuous">
+            {pages.map((pageNumber) => (
+              <PageCanvas
+                key={pageNumber}
+                documentHandle={state.documentHandle}
+                pageNumber={pageNumber}
+                zoom={zoom}
+                active={pageNumber === state.currentPage}
+                onMount={(element) => bindPageRef(pageRefs.current, pageNumber, element)}
+              />
+            ))}
+          </div>
+        )}
       </main>
 
       <footer className="reader-footer">
         <div className="reader-progress-meta">
-          <span>
-            Page {state.currentPage} of {state.totalPages}
-          </span>
-          <span>{percent}% completed</span>
+          <div className="reader-progress-group">
+            <strong>{state.currentPage} of {state.totalPages}</strong>
+            <span>{percent}% completed</span>
+          </div>
+
+          <div className="reader-progress-group">
+            <button type="button" className="icon-button" onClick={() => moveRelative(-1)} aria-label="Previous page">
+              <MaterialIcon>chevron_left</MaterialIcon>
+            </button>
+            <button type="button" className="icon-button" onClick={() => moveRelative(1)} aria-label="Next page">
+              <MaterialIcon>chevron_right</MaterialIcon>
+            </button>
+          </div>
         </div>
+
         <div className="reader-progress-line">
           <span style={{ width: `${percent}%` }} />
         </div>
@@ -317,6 +381,120 @@ export function ReaderPage() {
   );
 }
 
+type PageCanvasProps = {
+  documentHandle: PdfDocumentHandle;
+  pageNumber: number;
+  zoom: number;
+  active?: boolean;
+  onMount: (element: HTMLDivElement | null) => void;
+};
+
+function PageCanvas({ documentHandle, pageNumber, zoom, active = false, onMount }: PageCanvasProps) {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const [pageWidth, setPageWidth] = useState(760);
+  const [renderError, setRenderError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const element = wrapRef.current;
+    onMount(element);
+
+    return () => onMount(null);
+  }, [onMount]);
+
+  useEffect(() => {
+    const element = wrapRef.current;
+    if (!element) {
+      return;
+    }
+
+    const resizeObserver = new ResizeObserver(() => {
+      const maxWidth = Math.min(element.clientWidth - 64, 880);
+      setPageWidth(Math.max(320, maxWidth * zoom));
+    });
+
+    resizeObserver.observe(element);
+    const maxWidth = Math.min(element.clientWidth - 64, 880);
+    setPageWidth(Math.max(320, maxWidth * zoom));
+
+    return () => resizeObserver.disconnect();
+  }, [zoom]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return;
+    }
+    const stableCanvas: HTMLCanvasElement = canvas;
+
+    let cancelled = false;
+
+    async function drawPage() {
+      try {
+        setRenderError(null);
+        await renderPdfPage(stableCanvas, documentHandle, pageNumber, pageWidth);
+      } catch (caught) {
+        const isRenderCancellation =
+          caught instanceof Error &&
+          (caught.name === "RenderingCancelledException" || caught.message.includes("multiple render() operations"));
+
+        if (!cancelled && !isRenderCancellation) {
+          setRenderError(caught instanceof Error ? caught.message : "Unable to render this page.");
+        }
+      }
+    }
+
+    void drawPage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [documentHandle, pageNumber, pageWidth]);
+
+  return (
+    <section
+      ref={wrapRef}
+      data-page-number={pageNumber}
+      className={`page-paper page-paper-frame${active ? " active" : ""}`}
+    >
+      <div className="page-paper-label">Page {pageNumber}</div>
+      {renderError ? <div className="page-loading">{renderError}</div> : <canvas ref={canvasRef} />}
+    </section>
+  );
+}
+
 function MaterialIcon({ children }: { children: string }) {
   return <span className="material-symbols-outlined">{children}</span>;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function range(count: number) {
+  return Array.from({ length: count }, (_, index) => index + 1);
+}
+
+function bindPageRef(map: Map<number, HTMLDivElement>, pageNumber: number, element: HTMLDivElement | null) {
+  if (element) {
+    map.set(pageNumber, element);
+    return;
+  }
+
+  map.delete(pageNumber);
+}
+
+function readStoredReaderMode(): ReaderMode {
+  const value = localStorage.getItem(READER_MODE_KEY);
+  return value === "scroll" ? "scroll" : "flip";
+}
+
+function readStoredZoom(): number {
+  const value = Number(localStorage.getItem(READER_ZOOM_KEY));
+  return Number.isFinite(value) ? clamp(value, 0.8, 1.8) : 1;
+}
+
+function readStoredTheme(): ReaderTheme {
+  const value = localStorage.getItem(READER_THEME_KEY);
+  return value === "sepia" || value === "slate" ? value : "light";
 }

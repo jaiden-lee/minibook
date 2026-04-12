@@ -411,22 +411,54 @@ a {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
-  background: var(--surface-container-low);
+  background: var(--reader-background, var(--surface-container-low));
+  color: var(--reader-ink, var(--on-surface));
+}
+
+.reader-theme-light {
+  --reader-background: var(--surface-container-low);
+  --reader-surface: var(--surface-container-lowest);
+  --reader-ink: var(--on-surface);
+  --reader-muted: var(--on-surface-variant);
+}
+
+.reader-theme-sepia {
+  --reader-background: #efe7d7;
+  --reader-surface: #f7f0e2;
+  --reader-ink: #43362b;
+  --reader-muted: #756757;
+}
+
+.reader-theme-slate {
+  --reader-background: #1d2322;
+  --reader-surface: #232b29;
+  --reader-ink: #edf1ef;
+  --reader-muted: #aeb7b2;
 }
 
 .reader-topbar,
 .reader-footer {
   position: sticky;
-  z-index: 10;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 1rem 1.5rem;
+  padding: 0.9rem 1.5rem;
+  background: color-mix(in srgb, var(--reader-background) 86%, transparent);
+  backdrop-filter: blur(12px);
 }
 
 .reader-topbar {
   top: 0;
+}
+
+.reader-topbar-left,
+.reader-toolbar,
+.reader-progress-group {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
 }
 
 .reader-title {
@@ -435,53 +467,153 @@ a {
   gap: 0.25rem;
 }
 
+.reader-title h1 {
+  margin: 0;
+  font-family: "Manrope", sans-serif;
+  font-size: 1.1rem;
+  letter-spacing: -0.03em;
+}
+
+.reader-title span,
+.page-paper-label,
+.reader-progress-meta {
+  color: var(--reader-muted);
+}
+
 .reader-controls {
   display: inline-flex;
   align-items: center;
-  gap: 0.6rem;
-  padding: 0.45rem 0.65rem;
+  gap: 0.35rem;
+  padding: 0.35rem 0.55rem;
   border-radius: 999px;
-  background: var(--surface-container-low);
+  background: color-mix(in srgb, var(--reader-surface) 80%, var(--reader-background));
+}
+
+.reader-pill-button {
+  padding: 0.5rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  color: var(--reader-muted);
+  cursor: pointer;
+}
+
+.reader-pill-button.active {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+.reader-zoom-label {
+  min-width: 3.6rem;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .icon-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2.4rem;
-  height: 2.4rem;
+  width: 2.35rem;
+  height: 2.35rem;
   border-radius: 999px;
   cursor: pointer;
 }
 
 .icon-button:hover {
-  background: var(--surface-container-high);
+  background: color-mix(in srgb, var(--reader-surface) 75%, var(--reader-background));
 }
+
+.reader-nav-button {
+  background: color-mix(in srgb, var(--reader-surface) 75%, var(--reader-background));
+}
+
+.reader-appearance-menu {
+  position: fixed;
+  top: 5.2rem;
+  right: 1.5rem;
+  z-index: 30;
+  width: 14rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--reader-surface) 92%, transparent);
+  box-shadow: var(--whisper-shadow);
+  backdrop-filter: blur(12px);
+}
+
+.reader-appearance-title {
+  margin-bottom: 0.8rem;
+  font-family: "Manrope", sans-serif;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.reader-appearance-swatches {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+}
+
+.reader-swatch {
+  height: 2.3rem;
+  border-radius: 0.7rem;
+  box-shadow: inset 0 0 0 1px rgba(173, 179, 176, 0.28);
+  cursor: pointer;
+}
+
+.reader-swatch.active {
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+
+.reader-swatch-light { background: #f9f9f7; }
+.reader-swatch-sepia { background: #f4ecd8; }
+.reader-swatch-slate { background: #232b29; }
 
 .reader-main {
   flex: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 1.5rem;
-  padding: 1.5rem;
+  padding: 2.5rem 1.5rem 7rem;
 }
 
-.page-panel {
+.reader-main-centered {
   display: flex;
   justify-content: center;
 }
 
-.page-stage {
-  width: min(100%, 880px);
-  min-height: 82vh;
+.page-stack {
+  width: min(100%, 980px);
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+.page-stack.continuous {
+  gap: 3rem;
 }
 
 .page-paper {
-  background: var(--surface-container-lowest);
+  background: var(--reader-surface);
+  color: var(--reader-ink);
   border-radius: 0.25rem;
   box-shadow: var(--whisper-shadow);
-  padding: 2rem;
   min-height: 70vh;
+}
+
+.page-paper-frame {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 2rem;
+  transition: transform 180ms ease, opacity 180ms ease;
+}
+
+.page-paper-frame.active {
+  transform: translateY(-2px);
+}
+
+.page-paper-label {
+  margin-bottom: 1.2rem;
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
 }
 
 .page-paper canvas {
@@ -495,30 +627,9 @@ a {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--on-surface-variant);
+  color: var(--reader-muted);
+  font-family: "Newsreader", serif;
   font-size: 1.3rem;
-}
-
-.reader-sidepanel {
-  position: sticky;
-  top: 5.5rem;
-  align-self: start;
-  padding: 1.3rem;
-  border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: var(--whisper-shadow);
-  backdrop-filter: blur(10px);
-}
-
-.reader-sidepanel dl {
-  display: grid;
-  gap: 0.85rem;
-  margin: 0;
-}
-
-.reader-sidepanel dd {
-  margin: 0.2rem 0 0;
-  font-size: 1.05rem;
 }
 
 .reader-footer {
@@ -527,13 +638,30 @@ a {
   align-items: stretch;
 }
 
+.reader-progress-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+}
+
+.reader-progress-group strong {
+  color: var(--reader-ink);
+}
+
 .reader-progress-line {
   height: 2px;
-  background: var(--surface-container-highest);
+  background: color-mix(in srgb, var(--reader-muted) 22%, transparent);
+  overflow: hidden;
+  border-radius: 999px;
 }
 
 .reader-progress-line > span {
   display: block;
+  height: 100%;
   background: var(--primary);
 }
 
@@ -569,12 +697,9 @@ a {
     height: auto;
   }
 
-  .reader-main {
-    grid-template-columns: 1fr;
-  }
-
-  .reader-sidepanel {
-    position: static;
+  .reader-toolbar {
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
 }
 
@@ -591,5 +716,17 @@ a {
   .hero {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .reader-topbar,
+  .reader-progress-meta {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .reader-topbar-left,
+  .reader-toolbar,
+  .reader-progress-group {
+    justify-content: space-between;
   }
 }
