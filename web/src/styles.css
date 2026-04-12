@@ -434,12 +434,15 @@ a {
 
 .reader-topbar,
 .reader-footer {
-  position: sticky;
+  position: fixed;
   z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
+  left: 0;
+  right: 0;
+  width: 100%;
   padding: 0.9rem 1.5rem;
   background: var(--reader-background);
   backdrop-filter: blur(12px);
@@ -574,7 +577,7 @@ a {
 .reader-main {
   flex: 1;
   overflow-x: auto;
-  padding: 2.5rem 1.5rem 7rem;
+  padding: 5.5rem 1.5rem calc(6.5rem + env(safe-area-inset-bottom, 0px));
 }
 
 .reader-main-centered {
@@ -583,16 +586,17 @@ a {
 }
 
 .reader-canvas-area {
-  width: 100%;
+  width: max-content;
+  min-width: 100%;
   display: flex;
   justify-content: center;
 }
 
 .page-stack {
-  width: max-content;
-  min-width: min(100%, 980px);
+  width: fit-content;
   margin: 0 auto;
   display: flex;
+  align-items: center;
   flex-direction: column;
   gap: 2.5rem;
 }
@@ -663,7 +667,9 @@ a {
   bottom: 0;
   flex-direction: column;
   align-items: stretch;
+  margin: 0;
   padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+  box-shadow: 0 -8px 24px rgba(45, 52, 50, 0.04);
 }
 
 .reader-chrome-hidden .reader-footer {
