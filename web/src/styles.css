@@ -546,6 +546,28 @@ a {
   backdrop-filter: blur(12px);
 }
 
+.reader-debug-panel {
+  position: fixed;
+  top: 5.2rem;
+  left: 1rem;
+  z-index: 35;
+  width: 16rem;
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem 1rem;
+  border-radius: 0.9rem;
+  background: rgba(20, 24, 23, 0.88);
+  color: #f5f7f6;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  box-shadow: var(--whisper-shadow);
+}
+
+.reader-debug-panel strong {
+  color: #9fd0ff;
+  font-weight: 600;
+}
+
 .reader-appearance-title {
   margin-bottom: 0.8rem;
   font-family: "Manrope", sans-serif;
@@ -629,6 +651,13 @@ a {
   font-size: 0.68rem;
   text-transform: uppercase;
   letter-spacing: 0.18em;
+}
+
+.page-paper-content {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  width: 100%;
 }
 
 .page-paper canvas {

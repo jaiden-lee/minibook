@@ -18,6 +18,7 @@ type ReaderState = {
 const READER_MODE_KEY = "minibook:reader-mode";
 const READER_ZOOM_KEY = "minibook:reader-zoom";
 const READER_THEME_KEY = "minibook:reader-theme";
+const READER_DEBUG_KEY = "minibook:reader-debug";
 const DEFAULT_PAGE_ASPECT_RATIO = 1.414;
 const VIRTUAL_WINDOW = 2;
 
@@ -26,6 +27,8 @@ export function ReaderPage() {
   const navigate = useNavigate();
   const pageRefs = useRef(new Map<number, HTMLDivElement>());
   const initialScrollDoneRef = useRef(false);
+  const pendingRestoreRef = useRef<{ page: number; position: number } | null>(null);
+  const trackedScrollProgressRef = useRef<{ page: number; position: number }>({ page: 1, position: 0 });
   const [state, setState] = useState<ReaderState | null>(null);
   const [loadingMessage, setLoadingMessage] = useState("Checking latest progress...");
   const [error, setError] = useState<string | null>(null);
@@ -35,6 +38,15 @@ export function ReaderPage() {
   const [showAppearanceMenu, setShowAppearanceMenu] = useState(false);
   const [chromeHidden, setChromeHidden] = useState(false);
   const [pageJumpValue, setPageJumpValue] = useState("1");
+  const [pageAspectRatios, setPageAspectRatios] = useState<Record<number, number>>({});
+  const [readerDebug, setReaderDebug] = useState(() => localStorage.getItem(READER_DEBUG_KEY) === "1");
+  const [viewportWidth, setViewportWidth] = useState(() =>
+    typeof window !== "undefined" ? window.innerWidth : 1280,
+  );
+  const [scrollAnchorVersion, setScrollAnchorVersion] = useState(0);
+  const [, forceDebugTick] = useState(0);
+
+  const pageRenderWidth = getPageRenderWidth(viewportWidth, zoom);
 
   useEffect(() => {
     localStorage.setItem(READER_MODE_KEY, readerMode);
@@ -49,6 +61,16 @@ export function ReaderPage() {
   }, [theme]);
 
   useEffect(() => {
+    const updateViewportWidth = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", updateViewportWidth);
+    return () => window.removeEventListener("resize", updateViewportWidth);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(READER_DEBUG_KEY, readerDebug ? "1" : "0");
+  }, [readerDebug]);
+
+  useEffect(() => {
     if (!bookId) {
       navigate("/");
       return;
@@ -57,20 +79,29 @@ export function ReaderPage() {
     const currentBookId = bookId;
     let disposed = false;
     initialScrollDoneRef.current = false;
+    pendingRestoreRef.current = null;
 
     async function load() {
       try {
         setError(null);
+        setPageAspectRatios({});
         setLoadingMessage("Checking latest progress...");
         const opened = await openLocalBook(currentBookId);
         setLoadingMessage("Preparing your reading view...");
         const documentHandle = await loadPdfDocument(opened.bytes);
+        setLoadingMessage("Measuring page layout...");
+        const ratios = await loadAllPageAspectRatios(documentHandle, documentHandle.numPages);
 
         if (disposed) {
           return;
         }
 
+        setPageAspectRatios(ratios);
         const initialPage = opened.progress?.page ?? 1;
+        const initialPosition = opened.progress?.position_in_page ?? 0;
+        pendingRestoreRef.current = { page: initialPage, position: initialPosition };
+        trackedScrollProgressRef.current = { page: initialPage, position: initialPosition };
+        setScrollAnchorVersion((value) => value + 1);
         setPageJumpValue(String(initialPage));
         setState({
           title: opened.book.title,
@@ -79,6 +110,7 @@ export function ReaderPage() {
           progress: opened.progress,
           documentHandle,
         });
+
       } catch (caught) {
         setError(caught instanceof Error ? caught.message : "Unable to open this book.");
       }
@@ -100,62 +132,143 @@ export function ReaderPage() {
   }, [state?.currentPage]);
 
   useEffect(() => {
+    if (readerMode === "scroll" && state) {
+      initialScrollDoneRef.current = false;
+      pendingRestoreRef.current = {
+        page: state.currentPage,
+        position: state.progress?.position_in_page ?? trackedScrollProgressRef.current.position,
+      };
+    }
+  }, [readerMode, state?.documentHandle]);
+
+  useEffect(() => {
     if (!state || readerMode !== "scroll") {
       return;
     }
 
-    const observer = new IntersectionObserver(
-      (entries) => {
-        const visible = entries
-          .filter((entry) => entry.isIntersecting)
-          .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+    let frame = 0;
 
-        if (!visible) {
-          return;
+    const updateCurrentPageFromViewport = () => {
+      if (!initialScrollDoneRef.current) {
+        return;
+      }
+
+      const anchorY = getReaderAnchorY();
+      let closestPage = state.currentPage;
+      let closestPosition = trackedScrollProgressRef.current.position;
+
+      for (const [pageNumber, element] of pageRefs.current.entries()) {
+        const rect = getPageMeasurementRect(element);
+        if (rect.bottom >= anchorY) {
+          closestPage = pageNumber;
+          closestPosition = clamp((anchorY - rect.top) / rect.height, 0, 1);
+          break;
+        }
+      }
+
+      trackedScrollProgressRef.current = {
+        page: closestPage,
+        position: closestPosition,
+      };
+      setScrollAnchorVersion((value) => value + 1);
+
+      setState((current) => {
+        if (!current || current.currentPage === closestPage) {
+          return current;
         }
 
-        const page = Number((visible.target as HTMLElement).dataset.pageNumber);
-        if (!Number.isFinite(page)) {
-          return;
-        }
+        return {
+          ...current,
+          currentPage: closestPage,
+        };
+      });
+    };
 
-        setState((current) => {
-          if (!current || current.currentPage === page) {
-            return current;
-          }
+    const scheduleUpdate = () => {
+      if (frame) {
+        cancelAnimationFrame(frame);
+      }
 
-          return {
-            ...current,
-            currentPage: page,
-          };
-        });
-      },
-      {
-        root: null,
-        threshold: [0.55, 0.7, 0.9],
-      },
-    );
+      frame = requestAnimationFrame(updateCurrentPageFromViewport);
+    };
 
-    for (const element of pageRefs.current.values()) {
-      observer.observe(element);
-    }
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+    scheduleUpdate();
 
-    return () => observer.disconnect();
-  }, [readerMode, state?.documentHandle, state?.totalPages]);
+    const debugTick = window.setInterval(() => {
+      if (readerDebug) {
+        forceDebugTick((value) => value + 1);
+      }
+    }, 250);
+
+    return () => {
+      if (frame) {
+        cancelAnimationFrame(frame);
+      }
+      window.clearInterval(debugTick);
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+    };
+  }, [readerMode, state?.documentHandle, state?.totalPages, state?.currentPage, readerDebug]);
 
   useEffect(() => {
     if (!state || readerMode !== "scroll" || initialScrollDoneRef.current) {
       return;
     }
 
-    const target = pageRefs.current.get(state.currentPage);
+    const pending = pendingRestoreRef.current ?? { page: state.currentPage, position: 0 };
+    const target = pageRefs.current.get(pending.page);
     if (!target) {
       return;
     }
 
-    target.scrollIntoView({ block: "center" });
-    initialScrollDoneRef.current = true;
-  }, [readerMode, state?.currentPage, state?.documentHandle]);
+    const rect = getPageMeasurementRect(target);
+    const absoluteTop = window.scrollY + rect.top;
+    const desiredScrollTop = absoluteTop + rect.height * pending.position - getReaderAnchorY();
+    window.scrollTo({ top: Math.max(0, desiredScrollTop), behavior: "auto" });
+
+    let secondFrame = 0;
+    const firstFrame = requestAnimationFrame(() => {
+      secondFrame = requestAnimationFrame(() => {
+        pendingRestoreRef.current = null;
+        trackedScrollProgressRef.current = {
+          page: pending.page,
+          position: pending.position,
+        };
+        setScrollAnchorVersion((value) => value + 1);
+        initialScrollDoneRef.current = true;
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      if (secondFrame) {
+        cancelAnimationFrame(secondFrame);
+      }
+    };
+  }, [readerMode, state?.currentPage, state?.documentHandle, pageRenderWidth]);
+
+  useEffect(() => {
+    if (!state || readerMode !== "scroll" || !initialScrollDoneRef.current) {
+      return;
+    }
+
+    const tracked = trackedScrollProgressRef.current;
+    const timeout = window.setTimeout(() => {
+      const target = pageRefs.current.get(tracked.page);
+      if (!target) {
+        return;
+      }
+
+      const rect = getPageMeasurementRect(target);
+      const absoluteTop = window.scrollY + rect.top;
+      const desiredScrollTop = absoluteTop + rect.height * tracked.position - getReaderAnchorY();
+      window.scrollTo({ top: Math.max(0, desiredScrollTop), behavior: "auto" });
+    }, 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [pageRenderWidth, readerMode, state?.currentPage, state?.documentHandle]);
 
   useEffect(() => {
     if (!bookId || !state) {
@@ -165,15 +278,16 @@ export function ReaderPage() {
     const currentPage = state.currentPage;
     const totalPages = state.totalPages;
     const previous = state.progress;
+    const positionInPage = readerMode === "scroll" ? trackedScrollProgressRef.current.position : 0;
 
     const timeout = window.setTimeout(() => {
-      void saveBookProgress(bookId, currentPage, totalPages, previous).then((progress) => {
+      void saveBookProgress(bookId, currentPage, totalPages, positionInPage, previous).then((progress) => {
         setState((current) => (current ? { ...current, progress } : current));
       });
     }, 250);
 
     return () => window.clearTimeout(timeout);
-  }, [bookId, state?.currentPage, state?.totalPages]);
+  }, [bookId, state?.currentPage, state?.totalPages, readerMode, scrollAnchorVersion]);
 
   useEffect(() => {
     if (!bookId || !state) {
@@ -183,13 +297,14 @@ export function ReaderPage() {
     const currentPage = state.currentPage;
     const totalPages = state.totalPages;
     const previous = state.progress;
+    const positionInPage = readerMode === "scroll" ? trackedScrollProgressRef.current.position : 0;
 
     const saveOnHide = () => {
       if (document.visibilityState === "visible") {
         return;
       }
 
-      void saveBookProgress(bookId, currentPage, totalPages, previous);
+      void saveBookProgress(bookId, currentPage, totalPages, positionInPage, previous);
     };
 
     document.addEventListener("visibilitychange", saveOnHide);
@@ -199,7 +314,7 @@ export function ReaderPage() {
       document.removeEventListener("visibilitychange", saveOnHide);
       window.removeEventListener("beforeunload", saveOnHide);
     };
-  }, [bookId, state]);
+  }, [bookId, state, readerMode]);
 
   function goToPage(pageNumber: number, behavior: ScrollBehavior = "smooth") {
     setState((current) => {
@@ -210,7 +325,17 @@ export function ReaderPage() {
       const nextPage = clamp(pageNumber, 1, current.totalPages);
 
       if (readerMode === "scroll") {
-        pageRefs.current.get(nextPage)?.scrollIntoView({ behavior, block: "center" });
+        initialScrollDoneRef.current = true;
+        pendingRestoreRef.current = null;
+        trackedScrollProgressRef.current = { page: nextPage, position: 0 };
+        setScrollAnchorVersion((value) => value + 1);
+        const target = pageRefs.current.get(nextPage);
+        if (target) {
+          const rect = getPageMeasurementRect(target);
+          const absoluteTop = window.scrollY + rect.top;
+          const desiredScrollTop = absoluteTop - getReaderAnchorY() + 24;
+          window.scrollTo({ top: Math.max(0, desiredScrollTop), behavior });
+        }
       }
 
       return {
@@ -338,6 +463,16 @@ export function ReaderPage() {
               <MaterialIcon>contrast</MaterialIcon>
             </button>
           </div>
+
+          <div className="reader-controls">
+            <button
+              type="button"
+              className={`reader-pill-button${readerDebug ? " active" : ""}`}
+              onClick={() => setReaderDebug((value) => !value)}
+            >
+              Debug
+            </button>
+          </div>
         </div>
       </header>
 
@@ -355,6 +490,16 @@ export function ReaderPage() {
         </div>
       ) : null}
 
+      {readerDebug ? (
+        <ReaderDebugPanel
+          state={state}
+          readerMode={readerMode}
+          zoom={zoom}
+          pendingRestore={pendingRestoreRef.current}
+          trackedProgress={trackedScrollProgressRef.current}
+        />
+      ) : null}
+
       <main
         className="reader-main reader-main-centered"
         onClick={() => {
@@ -369,8 +514,9 @@ export function ReaderPage() {
                 key={`flip-${state.currentPage}-${theme}`}
                 documentHandle={state.documentHandle}
                 pageNumber={state.currentPage}
-                zoom={zoom}
+                pageWidth={pageRenderWidth}
                 theme={theme}
+                aspectRatio={pageAspectRatios[state.currentPage]}
                 onMount={(element) => bindPageRef(pageRefs.current, state.currentPage, element)}
               />
             </div>
@@ -381,8 +527,9 @@ export function ReaderPage() {
                   key={`${pageNumber}-${theme}`}
                   documentHandle={state.documentHandle}
                   pageNumber={pageNumber}
-                  zoom={zoom}
+                  pageWidth={pageRenderWidth}
                   theme={theme}
+                  aspectRatio={pageAspectRatios[pageNumber]}
                   active={pageNumber === state.currentPage}
                   shouldRender={renderedPages.has(pageNumber)}
                   onMount={(element) => bindPageRef(pageRefs.current, pageNumber, element)}
@@ -433,8 +580,9 @@ export function ReaderPage() {
 type PageCanvasProps = {
   documentHandle: PdfDocumentHandle;
   pageNumber: number;
-  zoom: number;
+  pageWidth: number;
   theme: ReaderTheme;
+  aspectRatio?: number;
   active?: boolean;
   shouldRender?: boolean;
   onMount: (element: HTMLDivElement | null) => void;
@@ -443,16 +591,16 @@ type PageCanvasProps = {
 function PageCanvas({
   documentHandle,
   pageNumber,
-  zoom,
+  pageWidth,
   theme,
+  aspectRatio: providedAspectRatio,
   active = false,
   shouldRender = true,
   onMount,
 }: PageCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
-  const [pageWidth, setPageWidth] = useState(760);
-  const [aspectRatio, setAspectRatio] = useState(DEFAULT_PAGE_ASPECT_RATIO);
+  const [aspectRatio, setAspectRatio] = useState(providedAspectRatio ?? DEFAULT_PAGE_ASPECT_RATIO);
   const [renderError, setRenderError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -463,6 +611,11 @@ function PageCanvas({
   }, [onMount]);
 
   useEffect(() => {
+    if (providedAspectRatio) {
+      setAspectRatio(providedAspectRatio);
+      return;
+    }
+
     let cancelled = false;
 
     async function loadAspectRatio() {
@@ -483,25 +636,7 @@ function PageCanvas({
     return () => {
       cancelled = true;
     };
-  }, [documentHandle, pageNumber]);
-
-  useEffect(() => {
-    const element = wrapRef.current;
-    if (!element) {
-      return;
-    }
-
-    const updateWidth = () => {
-      const availableWidth = Math.min(window.innerWidth - 96, 880);
-      setPageWidth(Math.max(320, availableWidth * zoom));
-    };
-
-    const resizeObserver = new ResizeObserver(updateWidth);
-    resizeObserver.observe(element);
-    updateWidth();
-
-    return () => resizeObserver.disconnect();
-  }, [zoom]);
+  }, [documentHandle, pageNumber, providedAspectRatio]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -546,13 +681,15 @@ function PageCanvas({
       onClick={(event) => event.stopPropagation()}
     >
       <div className="page-paper-label">Page {pageNumber}</div>
-      {renderError ? (
-        <div className="page-loading">{renderError}</div>
-      ) : shouldRender ? (
-        <canvas ref={canvasRef} className={`reader-canvas reader-canvas-${theme}`} />
-      ) : (
-        <div className="page-canvas-placeholder" style={{ width: `${pageWidth}px`, height: `${paperHeight}px` }} />
-      )}
+      <div className="page-paper-content">
+        {renderError ? (
+          <div className="page-loading">{renderError}</div>
+        ) : shouldRender ? (
+          <canvas ref={canvasRef} className={`reader-canvas reader-canvas-${theme}`} />
+        ) : (
+          <div className="page-canvas-placeholder" style={{ width: `${pageWidth}px`, height: `${paperHeight}px` }} />
+        )}
+      </div>
     </section>
   );
 }
@@ -591,4 +728,73 @@ function readStoredZoom(): number {
 function readStoredTheme(): ReaderTheme {
   const value = localStorage.getItem(READER_THEME_KEY);
   return value === "sepia" || value === "slate" ? value : "light";
+}
+
+function getReaderAnchorY() {
+  const topbar = document.querySelector(".reader-topbar") as HTMLElement | null;
+  const topbarHeight = topbar?.offsetHeight ?? 72;
+  return topbarHeight + 32;
+}
+
+function getPageRenderWidth(viewportWidth: number, zoom: number) {
+  const availableWidth = Math.min(Math.max(320, viewportWidth - 96), 880);
+  return Math.max(320, availableWidth * zoom);
+}
+
+function getPageMeasurementRect(element: HTMLDivElement) {
+  const content = element.querySelector(".page-paper-content") as HTMLElement | null;
+  return (content ?? element).getBoundingClientRect();
+}
+
+type ReaderDebugPanelProps = {
+  state: ReaderState;
+  readerMode: ReaderMode;
+  zoom: number;
+  pendingRestore: { page: number; position: number } | null;
+  trackedProgress: { page: number; position: number };
+};
+
+function ReaderDebugPanel({
+  state,
+  readerMode,
+  zoom,
+  pendingRestore,
+  trackedProgress,
+}: ReaderDebugPanelProps) {
+  return (
+    <aside className="reader-debug-panel">
+      <div><strong>mode</strong> {readerMode}</div>
+      <div><strong>zoom</strong> {zoom.toFixed(2)}</div>
+      <div><strong>state.page</strong> {state.currentPage}</div>
+      <div><strong>saved.page</strong> {state.progress?.page ?? "-"}</div>
+      <div><strong>saved.pos</strong> {formatDebugNumber(state.progress?.position_in_page)}</div>
+      <div><strong>tracked.page</strong> {trackedProgress.page}</div>
+      <div><strong>tracked.pos</strong> {formatDebugNumber(trackedProgress.position)}</div>
+      <div><strong>pending.page</strong> {pendingRestore?.page ?? "-"}</div>
+      <div><strong>pending.pos</strong> {formatDebugNumber(pendingRestore?.position)}</div>
+      <div><strong>scrollY</strong> {Math.round(window.scrollY)}</div>
+      <div><strong>anchorY</strong> {Math.round(getReaderAnchorY())}</div>
+    </aside>
+  );
+}
+
+function formatDebugNumber(value: number | undefined) {
+  return typeof value === "number" ? value.toFixed(4) : "-";
+}
+
+async function loadAllPageAspectRatios(
+  documentHandle: PdfDocumentHandle,
+  totalPages: number,
+) {
+  const ratios: Record<number, number> = {};
+
+  for (let pageNumber = 1; pageNumber <= totalPages; pageNumber += 1) {
+    try {
+      ratios[pageNumber] = await getPdfPageAspectRatio(documentHandle, pageNumber);
+    } catch {
+      ratios[pageNumber] = DEFAULT_PAGE_ASPECT_RATIO;
+    }
+  }
+
+  return ratios;
 }

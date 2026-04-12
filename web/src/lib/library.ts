@@ -81,6 +81,7 @@ export async function saveBookProgress(
   bookId: string,
   page: number,
   totalPages: number,
+  positionInPage: number,
   previous?: ProgressRecord,
 ): Promise<ProgressRecord> {
   const deviceId = getOrCreateDeviceId();
@@ -92,7 +93,7 @@ export async function saveBookProgress(
     device_id: deviceId,
     session_id: previous?.session_id ?? createSessionId(),
     page,
-    position_in_page: 0,
+    position_in_page: positionInPage,
     logical_progress: logicalProgress,
     opened_at: previous?.opened_at ?? now,
     updated_at: now,
