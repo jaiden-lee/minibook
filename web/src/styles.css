@@ -43,6 +43,75 @@ body {
   font-family: "Inter", sans-serif;
 }
 
+.app-theme {
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--on-background);
+}
+
+.app-theme-light {
+  --background: #f9f9f7;
+  --surface: #f9f9f7;
+  --surface-container-low: #f2f4f2;
+  --surface-container-lowest: #ffffff;
+  --surface-container: #ecefec;
+  --surface-container-high: #e5e9e6;
+  --surface-container-highest: #dee4e0;
+  --primary: #5f5e5e;
+  --primary-dim: #535252;
+  --secondary-fixed: #e4e2e2;
+  --tertiary: #486272;
+  --tertiary-fixed-dim: #c2def0;
+  --outline: #767c79;
+  --on-background: #2d3432;
+  --on-surface: #2d3432;
+  --on-surface-variant: #5a605e;
+  --on-primary: #faf7f6;
+  --whisper-shadow: 0 12px 32px rgba(45, 52, 50, 0.06);
+}
+
+.app-theme-sepia {
+  --background: #f1eadc;
+  --surface: #f1eadc;
+  --surface-container-low: #e8decc;
+  --surface-container-lowest: #fbf4e8;
+  --surface-container: #e3d8c3;
+  --surface-container-high: #ddd0ba;
+  --surface-container-highest: #d4c5ae;
+  --primary: #6f5d48;
+  --primary-dim: #5e4f3d;
+  --secondary-fixed: #d9ccba;
+  --tertiary: #7f6955;
+  --tertiary-fixed-dim: #d8c2a6;
+  --outline: #95836d;
+  --on-background: #3f352b;
+  --on-surface: #3f352b;
+  --on-surface-variant: #6f6456;
+  --on-primary: #fbf4e8;
+  --whisper-shadow: 0 12px 32px rgba(63, 53, 43, 0.08);
+}
+
+.app-theme-slate {
+  --background: #121514;
+  --surface: #121514;
+  --surface-container-low: #171b19;
+  --surface-container-lowest: #1c211f;
+  --surface-container: #1f2522;
+  --surface-container-high: #252c28;
+  --surface-container-highest: #2b332f;
+  --primary: #8f8677;
+  --primary-dim: #7a7265;
+  --secondary-fixed: #343b37;
+  --tertiary: #9e8f78;
+  --tertiary-fixed-dim: #b3a08a;
+  --outline: #5e655f;
+  --on-background: #e7e3db;
+  --on-surface: #e7e3db;
+  --on-surface-variant: #9b968d;
+  --on-primary: #111413;
+  --whisper-shadow: 0 12px 32px rgba(3, 4, 4, 0.34);
+}
+
 button,
 input {
   font: inherit;
@@ -129,12 +198,12 @@ a {
 
 .sidebar-link:hover {
   transform: translateX(4px);
-  background: rgba(255, 255, 255, 0.55);
+  background: color-mix(in srgb, var(--surface-container-lowest) 72%, transparent);
   color: var(--on-surface);
 }
 
 .sidebar-link.active {
-  background: rgba(255, 255, 255, 0.68);
+  background: color-mix(in srgb, var(--surface-container-lowest) 84%, transparent);
   color: var(--on-surface);
   font-weight: 700;
 }
@@ -180,7 +249,7 @@ a {
 .topbar,
 .reader-topbar,
 .reader-footer {
-  background: rgba(249, 249, 247, 0.82);
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
   backdrop-filter: blur(12px);
 }
 
@@ -329,8 +398,8 @@ a {
   flex-direction: column;
   justify-content: space-between;
   background:
-    radial-gradient(circle at top right, rgba(255, 255, 255, 0.65), transparent 38%),
-    linear-gradient(160deg, #dfe4df, #f5f3ef 52%, #d8d1cb);
+    radial-gradient(circle at top right, color-mix(in srgb, var(--surface-container-lowest) 78%, transparent), transparent 38%),
+    linear-gradient(160deg, var(--surface-container-high), var(--surface-container-lowest) 52%, var(--surface-container));
 }
 
 .book-cover-title {
@@ -389,7 +458,7 @@ a {
 .import-card,
 .empty-state {
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0.1)),
+    linear-gradient(180deg, color-mix(in srgb, var(--surface-container-lowest) 45%, transparent), color-mix(in srgb, var(--surface-container-lowest) 10%, transparent)),
     var(--surface-container-low);
 }
 
@@ -416,7 +485,6 @@ a {
   --reader-surface: var(--surface-container-lowest);
   --reader-ink: var(--on-surface);
   --reader-muted: var(--on-surface-variant);
-  --reader-page-frame: #ffffff;
 }
 
 .reader-theme-sepia {
@@ -424,7 +492,6 @@ a {
   --reader-surface: #f7f0e2;
   --reader-ink: #43362b;
   --reader-muted: #756757;
-  --reader-page-frame: #eee4d2;
 }
 
 .reader-theme-slate {
@@ -432,7 +499,6 @@ a {
   --reader-surface: #171b19;
   --reader-ink: #e7e3db;
   --reader-muted: #9b968d;
-  --reader-page-frame: #171711;
 }
 
 .reader-topbar,
@@ -597,6 +663,99 @@ a {
 .reader-swatch-light { background: #f9f9f7; }
 .reader-swatch-sepia { background: #f4ecd8; }
 .reader-swatch-slate { background: #171b19; }
+
+.settings-hero {
+  margin: 1rem 0 2.5rem;
+}
+
+.settings-hero h1 {
+  margin: 0 0 0.8rem;
+  font-family: "Manrope", sans-serif;
+  font-size: clamp(2.4rem, 3vw, 3.3rem);
+  letter-spacing: -0.05em;
+}
+
+.settings-hero p {
+  max-width: 40rem;
+  margin: 0;
+  color: var(--on-surface-variant);
+  font-family: "Newsreader", serif;
+  font-size: 1.2rem;
+  line-height: 1.6;
+}
+
+.settings-card {
+  max-width: 52rem;
+  padding: 1.5rem;
+  border-radius: 1.4rem;
+  background: var(--surface-container-low);
+  box-shadow: var(--whisper-shadow);
+}
+
+.settings-section-title {
+  margin-bottom: 1rem;
+  color: var(--on-surface-variant);
+  font-size: 0.75rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.settings-theme-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.settings-theme-option {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  gap: 1rem;
+  align-items: center;
+  width: 100%;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: var(--surface-container-lowest);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--outline) 24%, transparent);
+}
+
+.settings-theme-option.active {
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+
+.settings-theme-preview {
+  height: 4.5rem;
+  border-radius: 0.85rem;
+}
+
+.settings-theme-preview-light {
+  background: linear-gradient(135deg, #ffffff, #ecefec 60%, #dee4e0);
+}
+
+.settings-theme-preview-sepia {
+  background: linear-gradient(135deg, #fbf4e8, #e8decc 60%, #d4c5ae);
+}
+
+.settings-theme-preview-slate {
+  background: linear-gradient(135deg, #1c211f, #171b19 60%, #2b332f);
+}
+
+.settings-theme-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.settings-theme-copy strong {
+  font-family: "Manrope", sans-serif;
+  font-size: 1rem;
+}
+
+.settings-theme-copy span {
+  color: var(--on-surface-variant);
+  line-height: 1.5;
+}
 
 .reader-main {
   flex: 1;

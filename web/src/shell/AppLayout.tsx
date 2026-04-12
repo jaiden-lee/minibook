@@ -1,22 +1,33 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { AppearanceProvider, useAppearance } from "@/shell/AppearanceContext";
 
 const navItems = [
   { label: "Library", icon: "auto_stories", to: "/" },
   { label: "Recent", icon: "history", to: "/" },
   { label: "Collections", icon: "library_books", to: "/" },
-  { label: "Settings", icon: "settings", to: "/" },
+  { label: "Settings", icon: "settings", to: "/settings" },
 ];
 
 export function AppLayout() {
+  return (
+    <AppearanceProvider>
+      <AppLayoutInner />
+    </AppearanceProvider>
+  );
+}
+
+function AppLayoutInner() {
   const location = useLocation();
   const isReader = location.pathname.startsWith("/read/");
+  const { theme } = useAppearance();
 
   if (isReader) {
-    return <Outlet />;
+    return <div className={`app-theme app-theme-${theme}`}><Outlet /></div>;
   }
 
   return (
-    <div className="app-shell">
+    <div className={`app-theme app-theme-${theme}`}>
+      <div className="app-shell">
       <aside className="sidebar">
         <div>
           <div className="brand-title">minibook</div>
@@ -69,6 +80,7 @@ export function AppLayout() {
 
         <Outlet />
       </div>
+    </div>
     </div>
   );
 }

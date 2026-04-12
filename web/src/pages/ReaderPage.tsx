@@ -3,9 +3,9 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import type { ProgressRecord } from "@minibook/shared-types";
 import { openLocalBook, saveBookProgress } from "@/lib/library";
 import { getPdfPageAspectRatio, loadPdfDocument, renderPdfPage, type PdfDocumentHandle } from "@/lib/pdf";
+import { useAppearance, type AppearanceTheme } from "@/shell/AppearanceContext";
 
 type ReaderMode = "flip" | "scroll";
-type ReaderTheme = "light" | "sepia" | "slate";
 
 type ReaderState = {
   title: string;
@@ -35,7 +35,6 @@ type RestoreDebugSnapshot = {
 
 const READER_MODE_KEY = "minibook:reader-mode";
 const READER_ZOOM_KEY = "minibook:reader-zoom";
-const READER_THEME_KEY = "minibook:reader-theme";
 const READER_DEBUG_KEY = "minibook:reader-debug";
 const DEFAULT_PAGE_ASPECT_RATIO = 1.414;
 const VIRTUAL_WINDOW = 2;
@@ -56,7 +55,7 @@ export function ReaderPage() {
   const [error, setError] = useState<string | null>(null);
   const [readerMode, setReaderMode] = useState<ReaderMode>(() => readStoredReaderMode());
   const [zoom, setZoom] = useState<number>(() => readStoredZoom());
-  const [theme, setTheme] = useState<ReaderTheme>(() => readStoredTheme());
+  const { theme, setTheme } = useAppearance();
   const [showAppearanceMenu, setShowAppearanceMenu] = useState(false);
   const [chromeHidden, setChromeHidden] = useState(false);
   const [pageJumpValue, setPageJumpValue] = useState("1");
@@ -78,10 +77,6 @@ export function ReaderPage() {
   useEffect(() => {
     localStorage.setItem(READER_ZOOM_KEY, String(zoom));
   }, [zoom]);
-
-  useEffect(() => {
-    localStorage.setItem(READER_THEME_KEY, theme);
-  }, [theme]);
 
   useEffect(() => {
     const updateViewportWidth = () => setViewportWidth(window.innerWidth);
@@ -692,7 +687,7 @@ type PageCanvasProps = {
   documentHandle: PdfDocumentHandle;
   pageNumber: number;
   pageWidth: number;
-  theme: ReaderTheme;
+  theme: AppearanceTheme;
   aspectRatio?: number;
   active?: boolean;
   shouldRender?: boolean;
@@ -833,11 +828,6 @@ function readStoredReaderMode(): ReaderMode {
 function readStoredZoom(): number {
   const value = Number(localStorage.getItem(READER_ZOOM_KEY));
   return Number.isFinite(value) ? clamp(value, 0.7, 2) : 1;
-}
-
-function readStoredTheme(): ReaderTheme {
-  const value = localStorage.getItem(READER_THEME_KEY);
-  return value === "sepia" || value === "slate" ? value : "light";
 }
 
 function getLocalScrollResumeKey(bookId: string) {

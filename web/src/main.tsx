@@ -4,6 +4,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import { AppLayout } from "@/shell/AppLayout";
 import { LibraryPage } from "@/pages/LibraryPage";
 import { ReaderPage } from "@/pages/ReaderPage";
+import { SettingsPage } from "@/pages/SettingsPage";
 import "@/styles.css";
 
 const router = createBrowserRouter([
@@ -18,6 +19,10 @@ const router = createBrowserRouter([
       {
         path: "read/:bookId",
         element: <ReaderPage />,
+      },
+      {
+        path: "settings",
+        element: <SettingsPage />,
       },
     ],
   },
