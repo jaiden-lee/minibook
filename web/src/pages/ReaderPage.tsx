@@ -17,6 +17,7 @@ export function ReaderPage() {
   const navigate = useNavigate();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const pageWrapRef = useRef<HTMLDivElement | null>(null);
+  const renderRunRef = useRef(0);
   const [state, setState] = useState<ReaderState | null>(null);
   const [loadingMessage, setLoadingMessage] = useState("Checking latest progress...");
   const [error, setError] = useState<string | null>(null);
@@ -72,13 +73,22 @@ export function ReaderPage() {
     }
 
     let cancelled = false;
+    const renderRunId = ++renderRunRef.current;
 
     async function drawPage() {
       try {
         const width = Math.min(pageWrap!.clientWidth, 880) - 64;
         await renderPdfPage(canvas!, readerState!.documentHandle, readerState!.currentPage, width);
+
+        if (cancelled || renderRunRef.current !== renderRunId) {
+          return;
+        }
       } catch (caught) {
-        if (!cancelled) {
+        const isRenderCancellation =
+          caught instanceof Error &&
+          (caught.name === "RenderingCancelledException" || caught.message.includes("multiple render() operations"));
+
+        if (!cancelled && !isRenderCancellation) {
           setError(caught instanceof Error ? caught.message : "Unable to render the current page.");
         }
       }
@@ -89,7 +99,7 @@ export function ReaderPage() {
     return () => {
       cancelled = true;
     };
-  }, [state]);
+  }, [state?.documentHandle, state?.currentPage]);
 
   useEffect(() => {
     if (!bookId || !state) {

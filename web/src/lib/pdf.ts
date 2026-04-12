@@ -3,6 +3,14 @@ import workerUrl from "pdfjs-dist/build/pdf.worker.mjs?url";
 
 GlobalWorkerOptions.workerSrc = workerUrl;
 
+const activeRenderTasks = new WeakMap<
+  HTMLCanvasElement,
+  {
+    cancel: () => void;
+    promise: Promise<unknown>;
+  }
+>();
+
 export type PdfDocumentHandle = Awaited<ReturnType<typeof loadPdfDocument>>;
 
 export async function loadPdfDocument(data: ArrayBuffer) {
@@ -26,12 +34,33 @@ export async function renderPdfPage(
     throw new Error("Canvas context is unavailable.");
   }
 
+  const activeTask = activeRenderTasks.get(canvas);
+  if (activeTask) {
+    activeTask.cancel();
+
+    try {
+      await activeTask.promise;
+    } catch {
+      // PDF.js rejects canceled render tasks; that is expected here.
+    }
+  }
+
   canvas.width = viewport.width;
   canvas.height = viewport.height;
 
-  await page.render({
+  const renderTask = page.render({
     canvas,
     canvasContext: context,
     viewport,
-  }).promise;
+  });
+
+  activeRenderTasks.set(canvas, renderTask);
+
+  try {
+    await renderTask.promise;
+  } finally {
+    if (activeRenderTasks.get(canvas) === renderTask) {
+      activeRenderTasks.delete(canvas);
+    }
+  }
 }

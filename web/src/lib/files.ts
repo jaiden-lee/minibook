@@ -36,7 +36,7 @@ async function buildImportedBook(
       relative_path: relativePath,
       file_name: file.name,
       mime_type: file.type || "application/pdf",
-      blob: sourceKind === "imported-blob" ? new Blob([buffer], { type: "application/pdf" }) : undefined,
+      blob: new Blob([buffer], { type: "application/pdf" }),
       handle,
     },
   };
@@ -93,13 +93,18 @@ export async function importFromDirectory(): Promise<ImportedBook[]> {
 
 export async function readPdfBytes(asset: BookAssetRecord): Promise<ArrayBuffer> {
   if (asset.handle) {
-    const file = await asset.handle.getFile();
-    return file.arrayBuffer();
+    try {
+      const file = await asset.handle.getFile();
+      return file.arrayBuffer();
+    } catch {
+      // Some browsers revoke later reads from persisted file handles.
+      // Fall back to the locally stored blob if we have one.
+    }
   }
 
   if (asset.blob) {
     return asset.blob.arrayBuffer();
   }
 
-  throw new Error("No local PDF source is available for this book.");
+  throw new Error("This local file is no longer readable. Re-import the PDF or choose the folder again.");
 }
