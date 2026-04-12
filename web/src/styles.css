@@ -91,16 +91,14 @@ a {
 .subtle-note,
 .progress-label,
 .reader-title span,
-.reader-progress-meta,
-.reader-sidepanel dt {
+.reader-progress-meta {
   color: var(--on-surface-variant);
 }
 
 .brand-subtitle,
 .progress-label,
 .reader-title span,
-.reader-progress-meta,
-.reader-sidepanel dt {
+.reader-progress-meta {
   text-transform: uppercase;
   letter-spacing: 0.16em;
   font-size: 0.72rem;
@@ -263,7 +261,6 @@ a {
 .hero p,
 .book-meta p,
 .page-loading,
-.reader-sidepanel dd,
 .empty-state-card p {
   font-family: "Newsreader", serif;
 }
@@ -352,8 +349,7 @@ a {
 }
 
 .book-meta h2,
-.reader-title h1,
-.reader-sidepanel h2 {
+.reader-title h1 {
   margin: 0 0 0.3rem;
   font-family: "Manrope", sans-serif;
   letter-spacing: -0.03em;
@@ -570,6 +566,7 @@ a {
 
 .reader-main {
   flex: 1;
+  overflow-x: auto;
   padding: 2.5rem 1.5rem 7rem;
 }
 
@@ -579,7 +576,8 @@ a {
 }
 
 .page-stack {
-  width: min(100%, 980px);
+  width: max-content;
+  min-width: min(100%, 980px);
   display: flex;
   flex-direction: column;
   gap: 2.5rem;
@@ -594,7 +592,6 @@ a {
   color: var(--reader-ink);
   border-radius: 0.25rem;
   box-shadow: var(--whisper-shadow);
-  min-height: 70vh;
 }
 
 .page-paper-frame {
@@ -618,7 +615,8 @@ a {
 
 .page-paper canvas {
   display: block;
-  width: 100%;
+  width: auto;
+  max-width: none;
   height: auto;
 }
 
@@ -630,6 +628,21 @@ a {
   color: var(--reader-muted);
   font-family: "Newsreader", serif;
   font-size: 1.3rem;
+}
+
+.page-canvas-placeholder {
+  border-radius: 0.15rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.08)),
+    color-mix(in srgb, var(--reader-surface) 88%, var(--reader-background));
+}
+
+.reader-canvas-sepia {
+  filter: sepia(0.55) saturate(0.8) hue-rotate(-8deg) brightness(1.02);
+}
+
+.reader-canvas-slate {
+  filter: invert(0.94) hue-rotate(180deg) brightness(0.92) contrast(0.88);
 }
 
 .reader-footer {
@@ -650,6 +663,33 @@ a {
 
 .reader-progress-group strong {
   color: var(--reader-ink);
+}
+
+.reader-page-jump {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.55rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--reader-surface) 80%, var(--reader-background));
+}
+
+.reader-page-jump input {
+  width: 4.5rem;
+  padding: 0.35rem 0.5rem;
+  border: 0;
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--reader-background) 84%, transparent);
+  color: var(--reader-ink);
+  outline: none;
+}
+
+.reader-jump-button {
+  padding: 0.45rem 0.7rem;
+  border-radius: 999px;
+  background: var(--primary);
+  color: var(--on-primary);
+  cursor: pointer;
 }
 
 .reader-progress-line {
@@ -726,7 +766,8 @@ a {
 
   .reader-topbar-left,
   .reader-toolbar,
-  .reader-progress-group {
+  .reader-progress-group,
+  .reader-page-jump {
     justify-content: space-between;
   }
 }

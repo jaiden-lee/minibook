@@ -64,3 +64,12 @@ export async function renderPdfPage(
     }
   }
 }
+
+export async function getPdfPageAspectRatio(
+  documentHandle: PdfDocumentHandle,
+  pageNumber: number,
+): Promise<number> {
+  const page = await documentHandle.getPage(pageNumber);
+  const viewport = page.getViewport({ scale: 1 });
+  return viewport.height / viewport.width;
+}
