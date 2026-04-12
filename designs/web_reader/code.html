@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&amp;family=Manrope:wght@400;700;800&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-dim": "#535252",
+                        "on-tertiary-container": "#3e5868",
+                        "secondary-fixed-dim": "#d5d4d4",
+                        "outline": "#767c79",
+                        "secondary-fixed": "#e4e2e2",
+                        "on-tertiary": "#f4faff",
+                        "on-primary-container": "#525151",
+                        "on-error-container": "#752121",
+                        "on-secondary": "#faf8f8",
+                        "error-container": "#fe8983",
+                        "tertiary-fixed": "#d0ecff",
+                        "tertiary-dim": "#3c5666",
+                        "inverse-primary": "#ffffff",
+                        "on-primary-fixed": "#3f3f3f",
+                        "surface-container-low": "#f2f4f2",
+                        "surface-container-highest": "#dee4e0",
+                        "surface": "#f9f9f7",
+                        "inverse-surface": "#0c0f0e",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-dim": "#535353",
+                        "on-error": "#fff7f6",
+                        "secondary": "#5f5f5f",
+                        "on-background": "#2d3432",
+                        "on-tertiary-fixed-variant": "#486272",
+                        "primary-fixed-dim": "#d6d4d3",
+                        "outline-variant": "#adb3b0",
+                        "on-secondary-container": "#515252",
+                        "on-primary": "#faf7f6",
+                        "secondary-container": "#e4e2e2",
+                        "tertiary-container": "#d0ecff",
+                        "error-dim": "#4e0309",
+                        "surface-dim": "#d4dcd8",
+                        "surface-bright": "#f9f9f7",
+                        "on-secondary-fixed-variant": "#5b5b5b",
+                        "on-primary-fixed-variant": "#5c5b5b",
+                        "inverse-on-surface": "#9c9d9b",
+                        "on-surface": "#2d3432",
+                        "surface-container": "#ecefec",
+                        "primary-container": "#e4e2e1",
+                        "surface-container-high": "#e5e9e6",
+                        "on-tertiary-fixed": "#2c4655",
+                        "on-surface-variant": "#5a605e",
+                        "error": "#9f403d",
+                        "on-secondary-fixed": "#3f3f3f",
+                        "primary": "#5f5e5e",
+                        "tertiary-fixed-dim": "#c2def0",
+                        "tertiary": "#486272",
+                        "primary-fixed": "#e4e2e1",
+                        "surface-variant": "#dee4e0",
+                        "background": "#f9f9f7",
+                        "surface-tint": "#5f5e5e"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Newsreader"],
+                        "label": ["Inter"]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        .paper-shadow {
+            box-shadow: 0 12px 32px rgba(45, 52, 50, 0.06);
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body class="bg-surface font-label text-on-surface min-h-screen flex flex-col">
+<!-- Top Navigation Bar (Task Focused - Shell Suppressed but TopAppBar Custom Implementation) -->
+<header class="sticky top-0 w-full z-50 bg-[#f9f9f7]/80 backdrop-blur-md px-6 py-3 flex items-center justify-between">
+<div class="flex items-center gap-6">
+<button class="p-2 hover:bg-surface-container-low transition-colors rounded-lg flex items-center justify-center text-on-surface-variant">
+<span class="material-symbols-outlined" data-icon="arrow_back">arrow_back</span>
+</button>
+<div class="flex flex-col">
+<h1 class="font-headline font-extrabold text-lg tracking-tight text-on-surface">The Alchemist's Legacy</h1>
+<span class="text-[10px] font-label uppercase tracking-widest text-on-surface-variant opacity-60">Chapter IV: The Subtle Arts</span>
+</div>
+</div>
+<!-- Reader Controls Cluster -->
+<div class="flex items-center bg-surface-container-low px-4 py-1.5 rounded-full gap-4">
+<div class="flex items-center gap-2 border-r border-outline-variant/20 pr-4">
+<button class="p-1 hover:bg-surface-container-high rounded transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="remove">remove</span>
+</button>
+<span class="text-sm font-medium w-12 text-center">125%</span>
+<button class="p-1 hover:bg-surface-container-high rounded transition-colors">
+<span class="material-symbols-outlined text-[20px]" data-icon="add">add</span>
+</button>
+</div>
+<div class="flex items-center gap-3">
+<button class="p-1.5 hover:bg-surface-container-high rounded transition-colors" title="Reader Settings">
+<span class="material-symbols-outlined text-[20px]" data-icon="settings_ethernet">settings_ethernet</span>
+</button>
+<button class="p-1.5 hover:bg-surface-container-high rounded transition-colors" title="Theme">
+<span class="material-symbols-outlined text-[20px]" data-icon="contrast">contrast</span>
+</button>
+<button class="p-1.5 bg-primary text-on-primary rounded transition-colors" title="Bookmarks">
+<span class="material-symbols-outlined text-[20px]" data-icon="bookmark" style="font-variation-settings: 'FILL' 1;">bookmark</span>
+</button>
+</div>
+</div>
+<div class="flex items-center gap-4">
+<button class="flex items-center gap-2 px-4 py-2 hover:bg-surface-container-low rounded-lg transition-colors text-sm font-medium">
+<span class="material-symbols-outlined text-[20px]" data-icon="search">search</span>
+<span class="hidden md:block">Search</span>
+</button>
+<div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center overflow-hidden">
+<img alt="User Profile" class="w-full h-full object-cover" data-alt="close-up portrait of a thoughtful person in soft studio lighting with a neutral background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDVErsd1j21OYfhiotqNAueSj9LREoG4uHfVWtSOWxSl3-ZNWeOILuWGsES7drLqA_wq-2CNHm_KQf13lMnVwHuIyplsrlV3alBluij988r8np_kXbUyzvREmF-kJ7sqNFZ-HF6Dq0kC_b2o2x4qTQkhG4IzHFPDDZ8BMO09PlMMDFLcFkWmWE08OaEAAV61-2qMF_mZymht2Xt7m9xb_iVhusrqwJkI-FiYS_E2H09Pu5Sp1bWhtKrn0aPk3TlscJiRfGRofInBu2L"/>
+</div>
+</div>
+</header>
+<!-- Main Reader Canvas -->
+<main class="flex-1 overflow-y-auto no-scrollbar bg-surface-container-low flex flex-col items-center py-12 px-6">
+<!-- Reader Container with Editorial Spacing -->
+<div class="w-full max-w-4xl flex flex-col gap-12">
+<!-- PDF Page Placeholder 1 -->
+<section class="bg-surface-container-lowest paper-shadow rounded-sm aspect-[1/1.414] w-full p-16 md:p-24 flex flex-col relative">
+<!-- Page Content Mockup -->
+<div class="flex flex-col gap-8 flex-1">
+<div class="text-on-surface-variant font-label text-[10px] tracking-[0.2em] uppercase self-center mb-8">Page 142</div>
+<h2 class="font-body text-4xl md:text-5xl leading-tight text-on-surface mb-4">The Convergence of Elements</h2>
+<div class="font-body text-lg md:text-xl leading-[1.8] text-on-surface space-y-6">
+<p>It was in the heart of the Florentine winter that the manuscript first revealed its true nature. The vellum, aged to a deep ochre, seemed to pulse beneath the dim candlelight of the archives. Cellini had written extensively about the "subtle breath" of materials, but here was something more—a structural intent that defied contemporary alchemy.</p>
+<p>The margins were crowded with notations in a hand so fine it required a glass to decipher. They spoke of the transmutability of perception, suggesting that the gold the alchemists sought was not a metal, but a state of absolute clarity. "To see the world without the interference of the self," the text whispered across centuries.</p>
+<div class="my-12 flex gap-8 items-start">
+<div class="w-1/3 aspect-square bg-surface-container rounded-xl overflow-hidden grayscale opacity-80 hover:grayscale-0 transition-all duration-700">
+<img alt="Historical Illustration" class="w-full h-full object-cover" data-alt="close-up of an ancient botanical illustration with delicate ink lines and faded parchment texture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuASZPnvUPwkSK1V0Tkg09D-lJFlAGJP3u7d_TAU9BhhHPbh9JPbQWxrD3e5YC7YVuBhK6Iu-DPYxd4XO1CtBx0pBsOktd56-vbr7ZC-liceBRfXkerBGObAteUwL9qi4Ncr3Suy12vZriavZhuZc941JMQxtKzsKHQAETxvmgDT4uGVIJC0Qv299dHNkIPBMrglLn6OljLJI2ENm81d_3d9PWxnHspvtvSUF1XD-MGL6U_ocLyBRyViGmzJgwnZWymN7AJ42WmUg1Ni"/>
+</div>
+<div class="w-2/3 italic font-body text-on-surface-variant text-base border-l-2 border-primary-dim/10 pl-6 py-2">
+                                Figure 4.2: The recursive geometric patterns found in the margins of the 14th-century codex. Note the intentional asymmetry in the central apex.
+                            </div>
+</div>
+<p>As the reader turned the page, the very air in the vault seemed to thin. The geometry of the room shifted, or perhaps it was merely the effect of staring too long at the intricate mandalas that now began to dominate the narrative flow. Each line was a journey; each curve a promise of return.</p>
+</div>
+</div>
+<div class="mt-auto pt-12 flex justify-between items-end text-on-surface-variant font-label text-xs uppercase tracking-widest opacity-40">
+<span>Liber Primus</span>
+<span>MDCCCXXIV</span>
+</div>
+</section>
+<!-- PDF Page Placeholder 2 (Bleeding into view) -->
+<section class="bg-surface-container-lowest paper-shadow rounded-sm aspect-[1/1.414] w-full p-16 md:p-24 flex flex-col relative opacity-60">
+<div class="flex flex-col gap-8 flex-1">
+<div class="text-on-surface-variant font-label text-[10px] tracking-[0.2em] uppercase self-center mb-8">Page 143</div>
+<div class="font-body text-lg md:text-xl leading-[1.8] text-on-surface space-y-6">
+<p>The transition from the material to the ephemeral is rarely marked by thunder. It is more often a quiet sliding of doors, a softening of the edges of things. The archival silence became a heavy silk, muffling the distant sound of the city's bells. Here, in the intersection of ink and intention...</p>
+</div>
+</div>
+</section>
+</div>
+</main>
+<!-- Bottom Reading Progress Bar -->
+<footer class="sticky bottom-0 w-full bg-surface/90 backdrop-blur-sm px-8 py-6 z-50">
+<div class="max-w-screen-xl mx-auto flex flex-col gap-4">
+<!-- Progress Controls -->
+<div class="flex items-center justify-between text-xs font-label uppercase tracking-widest text-on-surface-variant">
+<div class="flex items-center gap-4">
+<span class="font-bold text-on-surface">142 of 384</span>
+<span class="opacity-40">—</span>
+<span>37% Completed</span>
+</div>
+<div class="flex items-center gap-4">
+<span>Est. 12 mins left in chapter</span>
+<button class="p-1 hover:text-on-surface transition-colors">
+<span class="material-symbols-outlined text-[18px]" data-icon="open_in_full">open_in_full</span>
+</button>
+</div>
+</div>
+<!-- The Minimal Progress Bar -->
+<div class="relative w-full h-1 bg-surface-container-highest rounded-full overflow-hidden">
+<div class="absolute top-0 left-0 h-full w-[37%] bg-primary transition-all duration-500"></div>
+</div>
+<!-- Discrete Chapter Markers -->
+<div class="relative w-full flex justify-between px-1">
+<div class="w-1.5 h-1.5 rounded-full bg-primary/20" title="Ch 1"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-primary/20" title="Ch 2"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-primary/20" title="Ch 3"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-primary" title="Ch 4 (Current)"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-outline-variant/30" title="Ch 5"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-outline-variant/30" title="Ch 6"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-outline-variant/30" title="Ch 7"></div>
+<div class="w-1.5 h-1.5 rounded-full bg-outline-variant/30" title="Ch 8"></div>
+</div>
+</div>
+</footer>
+<!-- Contextual Reader Settings Overlay (Simulated Floating Menu) -->
+<div class="fixed right-8 top-24 w-72 bg-surface-container-lowest paper-shadow rounded-xl p-6 hidden lg:block border border-outline-variant/10">
+<div class="flex flex-col gap-6">
+<div>
+<h3 class="font-headline font-bold text-sm mb-4 text-on-surface">Appearance</h3>
+<div class="grid grid-cols-3 gap-2">
+<button class="h-10 rounded border-2 border-primary bg-[#f9f9f7]" title="Light"></button>
+<button class="h-10 rounded border border-outline-variant/20 bg-[#f4ecd8]" title="Sepia"></button>
+<button class="h-10 rounded border border-outline-variant/20 bg-[#121212]" title="Dark"></button>
+</div>
+</div>
+<div>
+<h3 class="font-headline font-bold text-sm mb-3 text-on-surface">Typography</h3>
+<div class="flex flex-col gap-2">
+<div class="flex items-center justify-between p-2 hover:bg-surface-container-low rounded cursor-pointer">
+<span class="font-body italic text-lg">Newsreader</span>
+<span class="material-symbols-outlined text-primary" data-icon="check_circle" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+<div class="flex items-center justify-between p-2 hover:bg-surface-container-low rounded cursor-pointer opacity-50">
+<span class="font-headline text-sm uppercase tracking-tight">Manrope</span>
+</div>
+</div>
+</div>
+<div>
+<h3 class="font-headline font-bold text-sm mb-3 text-on-surface">Margins</h3>
+<div class="flex items-center gap-4 bg-surface-container-low p-1 rounded-lg">
+<button class="flex-1 py-1 rounded hover:bg-surface-container-lowest transition-all">
+<span class="material-symbols-outlined text-[18px]" data-icon="format_indent_increase">format_indent_increase</span>
+</button>
+<button class="flex-1 py-1 rounded bg-surface-container-lowest shadow-sm">
+<span class="material-symbols-outlined text-[18px]" data-icon="format_align_center">format_align_center</span>
+</button>
+<button class="flex-1 py-1 rounded hover:bg-surface-container-lowest transition-all">
+<span class="material-symbols-outlined text-[18px]" data-icon="format_indent_decrease">format_indent_decrease</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</body></html>

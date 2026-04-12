@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&amp;family=Manrope:wght@600;700;800&amp;family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400;1,6..72,500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-dim": "#535252",
+                        "on-tertiary-container": "#3e5868",
+                        "secondary-fixed-dim": "#d5d4d4",
+                        "outline": "#767c79",
+                        "secondary-fixed": "#e4e2e2",
+                        "on-tertiary": "#f4faff",
+                        "on-primary-container": "#525151",
+                        "on-error-container": "#752121",
+                        "on-secondary": "#faf8f8",
+                        "error-container": "#fe8983",
+                        "tertiary-fixed": "#d0ecff",
+                        "tertiary-dim": "#3c5666",
+                        "inverse-primary": "#ffffff",
+                        "on-primary-fixed": "#3f3f3f",
+                        "surface-container-low": "#f2f4f2",
+                        "surface-container-highest": "#dee4e0",
+                        "surface": "#f9f9f7",
+                        "inverse-surface": "#0c0f0e",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary-dim": "#535353",
+                        "on-error": "#fff7f6",
+                        "secondary": "#5f5f5f",
+                        "on-background": "#2d3432",
+                        "on-tertiary-fixed-variant": "#486272",
+                        "primary-fixed-dim": "#d6d4d3",
+                        "outline-variant": "#adb3b0",
+                        "on-secondary-container": "#515252",
+                        "on-primary": "#faf7f6",
+                        "secondary-container": "#e4e2e2",
+                        "tertiary-container": "#d0ecff",
+                        "error-dim": "#4e0309",
+                        "surface-dim": "#d4dcd8",
+                        "surface-bright": "#f9f9f7",
+                        "on-secondary-fixed-variant": "#5b5b5b",
+                        "on-primary-fixed-variant": "#5c5b5b",
+                        "inverse-on-surface": "#9c9d9b",
+                        "on-surface": "#2d3432",
+                        "surface-container": "#ecefec",
+                        "primary-container": "#e4e2e1",
+                        "surface-container-high": "#e5e9e6",
+                        "on-tertiary-fixed": "#2c4655",
+                        "on-surface-variant": "#5a605e",
+                        "error": "#9f403d",
+                        "on-secondary-fixed": "#3f3f3f",
+                        "primary": "#5f5e5e",
+                        "tertiary-fixed-dim": "#c2def0",
+                        "tertiary": "#486272",
+                        "primary-fixed": "#e4e2e1",
+                        "surface-variant": "#dee4e0",
+                        "background": "#f9f9f7",
+                        "surface-tint": "#5f5e5e"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "fontFamily": {
+                        "headline": ["Manrope"],
+                        "body": ["Newsreader"],
+                        "label": ["Inter"]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+        }
+        .book-spine {
+            border-radius: 0 0.75rem 0.75rem 0;
+            box-shadow: -4px 0 12px rgba(45, 52, 50, 0.08);
+        }
+        body {
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-surface font-label text-on-surface">
+<!-- TopAppBar -->
+<header class="bg-[#f9f9f7]/80 dark:bg-[#2d3432]/80 backdrop-blur-xl fixed top-0 w-full z-50 shadow-[0_12px_32px_rgba(45,52,50,0.06)] dark:shadow-none">
+<div class="flex justify-between items-center px-6 py-4 w-full">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-[#5f5e5e] dark:text-[#dee4e0]" data-icon="menu">menu</span>
+<h1 class="font-['Newsreader'] italic text-xl text-[#2d3432] dark:text-[#f9f9f7]">The Silent Editor</h1>
+</div>
+<div class="relative group">
+<img alt="Profile" class="w-10 h-10 rounded-full border-2 border-surface-container-high object-cover" data-alt="Close up portrait of a young man with a friendly expression in soft professional lighting, neutral background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAqjWKIRp3UN4Kf2Vqcmcom9MN-J5ghQYZCxG_S6O8BH_XouDPJUsan408NVTifcLa32xEblcMoMkmbkVbLIxqSDLFEOQzXnPQHkaT1zKgnX-63eP-qwNYIgsRXCuqdCndPgqfgNgq5pWixYMGP7wURLSnCZTFt_kzMoA5zZkYC1ixGo9sy6QDuph6f852hU9YaNRlkkBCulmwcjg_N2vvp_lCu_Wz06lWVbUT4RMc4sKH2dlO46W-SFWcJNL613jPUxDbSFXHrdKyx"/>
+<div class="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5 shadow-sm">
+<img alt="Google Drive icon" class="w-4 h-4" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCY3dqsc4iqZ7q67Vd9yoybOJaoMR-abXey9CzKCFqVxzX3LSwxRDVx-PTCMmE5umtu-SI9qvi3Mv0HQHVifStuMyAzpYKZdCcr9fva9WI9sBr0N_L2NNDg_bF33BB3R-cdwpU8gEx8r1eLO57JWgqO8DH5aatc5NqrN-DbJRZIKox8roLIptA8ZIb6VRwI3q_Vvme8VmFUK6pHHXHjjHc-qisgCwaME3fut5OaiAci3r48LbFU-bM8uQHpsKT0wCwa26BeNXuvXflE"/>
+</div>
+</div>
+</div>
+</header>
+<!-- Main Content Canvas -->
+<main class="pt-24 pb-32 px-6 min-h-screen">
+<!-- Welcome Section -->
+<div class="mb-10">
+<h2 class="font-headline text-3xl font-extrabold tracking-tight text-on-surface mb-2">My Library</h2>
+<p class="font-body text-lg text-on-surface-variant leading-relaxed">Continue your literary journey through the digital vellum.</p>
+</div>
+<!-- Library Grid: Asymmetric Layout -->
+<div class="grid grid-cols-2 gap-x-6 gap-y-10">
+<!-- Book 1 -->
+<div class="group cursor-pointer">
+<div class="aspect-[2/3] bg-surface-container-lowest overflow-hidden book-spine mb-4 transform group-hover:scale-[1.02] transition-transform duration-300">
+<img alt="Book Cover" class="w-full h-full object-cover" data-alt="Minimalist book cover design with abstract geometric shapes in muted earth tones, soft paper texture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDd31i3ZcmCifFLA2-P-CkzN0rqqI4-zq1H4ArzEclCwQQuYl6mUMiU8UASEWLsPhiWGgEKpNFWOH2gjasLB7zW8CQ8-9hIGYiFINwEBXVbqOd2OQ4sllsS4UsFyu8wjOm_dXYbCYO4grkb0xBJWMlf6udjDKOVO8O9HjOZg-pO98A25pKx593WWiJIQ3EQGf_vDZN-kJjZI2fuxmwg_BAgF0VefDzcZ0TGfBCa0ZEeyMQqVM-Ih0STHHluasz5f55QLXawQYI_faYm"/>
+</div>
+<h3 class="font-headline text-sm font-bold text-on-surface mb-1">A Midsummer Night's Dream</h3>
+<p class="font-label text-[10px] uppercase tracking-widest text-outline">William Shakespeare</p>
+<div class="mt-3 h-[2px] w-full bg-surface-container">
+<div class="h-full bg-tertiary-fixed-dim w-[65%]"></div>
+</div>
+</div>
+<!-- Book 2 -->
+<div class="group cursor-pointer mt-6">
+<div class="aspect-[2/3] bg-surface-container-lowest overflow-hidden book-spine mb-4 transform group-hover:scale-[1.02] transition-transform duration-300">
+<img alt="Book Cover" class="w-full h-full object-cover" data-alt="Vintage book cover with elegant serif typography and a single botanical illustration on cream paper" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAxf6u4dNMcZtEN5neuh_lagDSFoC6glDiRqKhoMwSa5E-odGd2Qm92EYoBJmzxpRJGJCbhEhaOzv8sz1olYl7JcBYi58JiVTw6LNJYPuXUG_UAgu1iPhh8blsHJscG40_zrQ-MHpWGrH1I2u5vhhAGAg37m64tiAKQOPDMr3m9PZb9AlOMGoDJw0oDVNcDbAUmskV91vAexr8V2Vd7vetj1k02IQE1Rfz-YPyuW4SPaB7UUWMDFMdeZtvV3LjGvBjUy2KzAyisQgZt"/>
+</div>
+<h3 class="font-headline text-sm font-bold text-on-surface mb-1">Meditations</h3>
+<p class="font-label text-[10px] uppercase tracking-widest text-outline">Marcus Aurelius</p>
+<div class="mt-3 h-[2px] w-full bg-surface-container">
+<div class="h-full bg-tertiary-fixed-dim w-[12%]"></div>
+</div>
+</div>
+<!-- Book 3 -->
+<div class="group cursor-pointer -mt-6">
+<div class="aspect-[2/3] bg-surface-container-lowest overflow-hidden book-spine mb-4 transform group-hover:scale-[1.02] transition-transform duration-300">
+<img alt="Book Cover" class="w-full h-full object-cover" data-alt="Modern dark book cover with silver foil accents and minimalist architectural lines" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBCbWkrtgFs1otaRRRpeV_gc1AqgmYfhNJAZwfQ-JmZk9yXluX_ZavKscroxwLQtqV20XK2sOHG1vGyppt9WATCEEdBeKPzYSha872P7-xFsLJ-OsoIIzd0oG-OoaSWaFdRzP1MtiYY048FwHMYW4IOyQrgKZX7PTT11rZl8F2UvhL2nVPburqDiixYn7sYdbHnv1pbnr93p3YQPqBf69MyMB6y7LBw_7Sbr2okWaeOQsxGQ2R8jseUJ7CIpHlIFiOVgFNjklMinjfv"/>
+</div>
+<h3 class="font-headline text-sm font-bold text-on-surface mb-1">The Art of War</h3>
+<p class="font-label text-[10px] uppercase tracking-widest text-outline">Sun Tzu</p>
+<div class="mt-3 h-[2px] w-full bg-surface-container">
+<div class="h-full bg-tertiary-fixed-dim w-[98%]"></div>
+</div>
+</div>
+<!-- Book 4 -->
+<div class="group cursor-pointer">
+<div class="aspect-[2/3] bg-surface-container-lowest overflow-hidden book-spine mb-4 transform group-hover:scale-[1.02] transition-transform duration-300">
+<img alt="Book Cover" class="w-full h-full object-cover" data-alt="Clean editorial book cover with a soft focus landscape photography and classic typography" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAdsZWHghgLVn7797Pcxz3LI-t0GLcqBIrDQXCs8IfBz6U4qHmUBSRmGhxiFQdQBsa9Pa-7J8-Dr-gKmbe4c_Yotu9PcoDJuvS6IlBUipUwafNydAFHns_eTb8dDcliMBx0MHY8V6Phh72JfO6GTWzp7BGO2rNQ_7JLJVZfiZ5ivA0pCTFaUoySdo77wVbDQde80asaUT_46a8gqANfSmXt_I3OgJzvlYImAoy0TVTRORYxeY6bFE3ycaumWaRPzk4HxXoBUlAOW0op"/>
+</div>
+<h3 class="font-headline text-sm font-bold text-on-surface mb-1">Great Expectations</h3>
+<p class="font-label text-[10px] uppercase tracking-widest text-outline">Charles Dickens</p>
+<div class="mt-3 h-[2px] w-full bg-surface-container">
+<div class="h-full bg-tertiary-fixed-dim w-[0%]"></div>
+</div>
+</div>
+<!-- Empty Placeholder / Add New -->
+<div class="aspect-[2/3] bg-surface-container-low rounded-xl flex flex-col items-center justify-center border-2 border-dashed border-outline-variant/20 p-6 text-center group cursor-pointer hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined text-outline text-3xl mb-2" data-icon="add_circle">add_circle</span>
+<span class="font-label text-xs font-medium text-outline">Import from Drive</span>
+</div>
+</div>
+</main>
+<!-- FAB: Floating Action Button -->
+<button class="fixed right-6 bottom-24 w-14 h-14 bg-gradient-to-br from-primary to-primary-dim text-on-primary rounded-xl shadow-[0_12px_32px_rgba(45,52,50,0.2)] flex items-center justify-center active:scale-95 transition-transform z-40">
+<span class="material-symbols-outlined text-2xl" data-icon="add">add</span>
+</button>
+<!-- BottomNavBar -->
+<nav class="bg-[#f9f9f7]/80 dark:bg-[#2d3432]/80 backdrop-blur-xl fixed bottom-0 w-full z-50 rounded-t-2xl shadow-[0_-4px_24px_rgba(45,52,50,0.04)]">
+<div class="fixed bottom-0 left-0 w-full flex justify-around items-center px-4 pb-4 pt-2 h-20">
+<!-- Library (Active) -->
+<a class="flex flex-col items-center justify-center bg-[#dee4e0] dark:bg-[#5f5e5e] text-[#2d3432] dark:text-[#f9f9f7] rounded-xl px-6 py-1.5 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="local_library" style="font-variation-settings: 'FILL' 1;">local_library</span>
+<span class="font-['Inter'] text-[10px] font-medium uppercase tracking-widest">Library</span>
+</a>
+<!-- Recent -->
+<a class="flex flex-col items-center justify-center text-[#5f5e5e] dark:text-[#dee4e0] opacity-60 hover:opacity-100 transition-opacity duration-200 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="auto_stories">auto_stories</span>
+<span class="font-['Inter'] text-[10px] font-medium uppercase tracking-widest">Recent</span>
+</a>
+<!-- Explore -->
+<a class="flex flex-col items-center justify-center text-[#5f5e5e] dark:text-[#dee4e0] opacity-60 hover:opacity-100 transition-opacity duration-200 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="explore">explore</span>
+<span class="font-['Inter'] text-[10px] font-medium uppercase tracking-widest">Explore</span>
+</a>
+<!-- Settings -->
+<a class="flex flex-col items-center justify-center text-[#5f5e5e] dark:text-[#dee4e0] opacity-60 hover:opacity-100 transition-opacity duration-200 active:scale-90 transition-transform" href="#">
+<span class="material-symbols-outlined mb-1" data-icon="settings">settings</span>
+<span class="font-['Inter'] text-[10px] font-medium uppercase tracking-widest">Settings</span>
+</a>
+</div>
+</nav>
+</body></html>

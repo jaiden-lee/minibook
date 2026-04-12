@@ -1,0 +1,13 @@
+{
+  "name": "minibook",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "web",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm --workspace web run dev",
+    "build:web": "npm --workspace web run build"
+  }
+}
