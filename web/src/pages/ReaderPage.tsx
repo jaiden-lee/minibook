@@ -33,6 +33,7 @@ export function ReaderPage() {
   const [zoom, setZoom] = useState<number>(() => readStoredZoom());
   const [theme, setTheme] = useState<ReaderTheme>(() => readStoredTheme());
   const [showAppearanceMenu, setShowAppearanceMenu] = useState(false);
+  const [chromeHidden, setChromeHidden] = useState(false);
   const [pageJumpValue, setPageJumpValue] = useState("1");
 
   useEffect(() => {
@@ -283,7 +284,7 @@ export function ReaderPage() {
 
   const percent = Math.round((state.currentPage / state.totalPages) * 100);
   const pages = range(state.totalPages);
-  const shellClass = `reader-shell reader-theme-${theme}`;
+  const shellClass = `reader-shell reader-theme-${theme}${chromeHidden ? " reader-chrome-hidden" : ""}`;
   const renderedPages = new Set(
     readerMode === "flip"
       ? [state.currentPage]
@@ -354,34 +355,42 @@ export function ReaderPage() {
         </div>
       ) : null}
 
-      <main className="reader-main reader-main-centered">
-        {readerMode === "flip" ? (
-          <div className="page-stack">
-            <PageCanvas
-              key={`flip-${state.currentPage}-${theme}`}
-              documentHandle={state.documentHandle}
-              pageNumber={state.currentPage}
-              zoom={zoom}
-              theme={theme}
-              onMount={(element) => bindPageRef(pageRefs.current, state.currentPage, element)}
-            />
-          </div>
-        ) : (
-          <div className="page-stack continuous">
-            {pages.map((pageNumber) => (
+      <main
+        className="reader-main reader-main-centered"
+        onClick={() => {
+          setShowAppearanceMenu(false);
+          setChromeHidden((value) => !value);
+        }}
+      >
+        <div className="reader-canvas-area">
+          {readerMode === "flip" ? (
+            <div className="page-stack">
               <PageCanvas
-                key={`${pageNumber}-${theme}`}
+                key={`flip-${state.currentPage}-${theme}`}
                 documentHandle={state.documentHandle}
-                pageNumber={pageNumber}
+                pageNumber={state.currentPage}
                 zoom={zoom}
                 theme={theme}
-                active={pageNumber === state.currentPage}
-                shouldRender={renderedPages.has(pageNumber)}
-                onMount={(element) => bindPageRef(pageRefs.current, pageNumber, element)}
+                onMount={(element) => bindPageRef(pageRefs.current, state.currentPage, element)}
               />
-            ))}
-          </div>
-        )}
+            </div>
+          ) : (
+            <div className="page-stack continuous">
+              {pages.map((pageNumber) => (
+                <PageCanvas
+                  key={`${pageNumber}-${theme}`}
+                  documentHandle={state.documentHandle}
+                  pageNumber={pageNumber}
+                  zoom={zoom}
+                  theme={theme}
+                  active={pageNumber === state.currentPage}
+                  shouldRender={renderedPages.has(pageNumber)}
+                  onMount={(element) => bindPageRef(pageRefs.current, pageNumber, element)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
       </main>
 
       <footer className="reader-footer">
@@ -534,6 +543,7 @@ function PageCanvas({
       data-page-number={pageNumber}
       className={className}
       style={{ width: `${pageWidth + 64}px`, minHeight: `${paperHeight + 96}px` }}
+      onClick={(event) => event.stopPropagation()}
     >
       <div className="page-paper-label">Page {pageNumber}</div>
       {renderError ? (

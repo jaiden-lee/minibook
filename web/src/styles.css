@@ -441,12 +441,19 @@ a {
   justify-content: space-between;
   gap: 1rem;
   padding: 0.9rem 1.5rem;
-  background: color-mix(in srgb, var(--reader-background) 86%, transparent);
+  background: var(--reader-background);
   backdrop-filter: blur(12px);
+  transition: transform 180ms ease, opacity 180ms ease;
 }
 
 .reader-topbar {
   top: 0;
+}
+
+.reader-chrome-hidden .reader-topbar {
+  transform: translateY(calc(-100% - 0.5rem));
+  opacity: 0;
+  pointer-events: none;
 }
 
 .reader-topbar-left,
@@ -575,9 +582,16 @@ a {
   justify-content: center;
 }
 
+.reader-canvas-area {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
 .page-stack {
   width: max-content;
   min-width: min(100%, 980px);
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 2.5rem;
@@ -649,6 +663,13 @@ a {
   bottom: 0;
   flex-direction: column;
   align-items: stretch;
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+.reader-chrome-hidden .reader-footer {
+  transform: translateY(calc(100% + 0.5rem));
+  opacity: 0;
+  pointer-events: none;
 }
 
 .reader-progress-meta {
