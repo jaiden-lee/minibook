@@ -416,6 +416,7 @@ a {
   --reader-surface: var(--surface-container-lowest);
   --reader-ink: var(--on-surface);
   --reader-muted: var(--on-surface-variant);
+  --reader-page-frame: #ffffff;
 }
 
 .reader-theme-sepia {
@@ -423,13 +424,15 @@ a {
   --reader-surface: #f7f0e2;
   --reader-ink: #43362b;
   --reader-muted: #756757;
+  --reader-page-frame: #eee4d2;
 }
 
 .reader-theme-slate {
-  --reader-background: #1d2322;
-  --reader-surface: #232b29;
-  --reader-ink: #edf1ef;
-  --reader-muted: #aeb7b2;
+  --reader-background: #121514;
+  --reader-surface: #171b19;
+  --reader-ink: #e7e3db;
+  --reader-muted: #9b968d;
+  --reader-page-frame: #171711;
 }
 
 .reader-topbar,
@@ -481,7 +484,6 @@ a {
 }
 
 .reader-title span,
-.page-paper-label,
 .reader-progress-meta {
   color: var(--reader-muted);
 }
@@ -594,7 +596,7 @@ a {
 
 .reader-swatch-light { background: #f9f9f7; }
 .reader-swatch-sepia { background: #f4ecd8; }
-.reader-swatch-slate { background: #232b29; }
+.reader-swatch-slate { background: #171b19; }
 
 .reader-main {
   flex: 1;
@@ -620,37 +622,24 @@ a {
   display: flex;
   align-items: center;
   flex-direction: column;
-  gap: 2.5rem;
+  gap: 1.5rem;
 }
 
 .page-stack.continuous {
-  gap: 3rem;
+  gap: 1rem;
 }
 
 .page-paper {
-  background: var(--reader-surface);
+  background: transparent;
   color: var(--reader-ink);
-  border-radius: 0.25rem;
-  box-shadow: var(--whisper-shadow);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .page-paper-frame {
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 2rem;
-  transition: transform 180ms ease, opacity 180ms ease;
-}
-
-.page-paper-frame.active {
-  transform: translateY(-2px);
-}
-
-.page-paper-label {
-  margin-bottom: 1.2rem;
-  font-size: 0.68rem;
-  text-transform: uppercase;
-  letter-spacing: 0.18em;
+  justify-content: center;
+  transition: opacity 180ms ease;
 }
 
 .page-paper-content {
@@ -658,6 +647,7 @@ a {
   align-items: flex-start;
   justify-content: center;
   width: 100%;
+  background: transparent;
 }
 
 .page-paper canvas {
@@ -665,6 +655,7 @@ a {
   width: auto;
   max-width: none;
   height: auto;
+  background: transparent;
 }
 
 .page-loading {
@@ -689,7 +680,7 @@ a {
 }
 
 .reader-canvas-slate {
-  filter: invert(0.94) hue-rotate(180deg) brightness(0.92) contrast(0.88);
+  filter: invert(0.965) hue-rotate(180deg) saturate(0.68) brightness(0.74) contrast(0.96) sepia(0.14);
 }
 
 .reader-footer {
@@ -698,7 +689,7 @@ a {
   align-items: stretch;
   margin: 0;
   padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
-  box-shadow: 0 -8px 24px rgba(45, 52, 50, 0.04);
+  box-shadow: 0 -8px 24px rgba(10, 12, 11, 0.18);
 }
 
 .reader-chrome-hidden .reader-footer {

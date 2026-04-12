@@ -788,10 +788,9 @@ function PageCanvas({
       ref={wrapRef}
       data-page-number={pageNumber}
       className={className}
-      style={{ width: `${pageWidth + 64}px`, minHeight: `${paperHeight + 96}px` }}
+      style={{ width: `${pageWidth}px`, minHeight: `${paperHeight}px` }}
       onClick={(event) => event.stopPropagation()}
     >
-      <div className="page-paper-label">Page {pageNumber}</div>
       <div className="page-paper-content">
         {renderError ? (
           <div className="page-loading">{renderError}</div>
