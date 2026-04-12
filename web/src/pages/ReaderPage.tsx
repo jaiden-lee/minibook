@@ -15,6 +15,24 @@ type ReaderState = {
   documentHandle: PdfDocumentHandle;
 };
 
+type PendingRestore = {
+  page: number;
+  position: number;
+  scrollY?: number;
+};
+
+type LocalScrollResume = {
+  mode: ReaderMode;
+  zoom: number;
+  viewportWidth: number;
+  scrollY: number;
+};
+
+type RestoreDebugSnapshot = {
+  source: "local-scroll" | "computed-anchor";
+  targetScrollY: number;
+};
+
 const READER_MODE_KEY = "minibook:reader-mode";
 const READER_ZOOM_KEY = "minibook:reader-zoom";
 const READER_THEME_KEY = "minibook:reader-theme";
@@ -27,7 +45,7 @@ export function ReaderPage() {
   const navigate = useNavigate();
   const pageRefs = useRef(new Map<number, HTMLDivElement>());
   const initialScrollDoneRef = useRef(false);
-  const pendingRestoreRef = useRef<{ page: number; position: number } | null>(null);
+  const pendingRestoreRef = useRef<PendingRestore | null>(null);
   const trackedScrollProgressRef = useRef<{ page: number; position: number }>({ page: 1, position: 0 });
   const [state, setState] = useState<ReaderState | null>(null);
   const [loadingMessage, setLoadingMessage] = useState("Checking latest progress...");
@@ -44,6 +62,7 @@ export function ReaderPage() {
     typeof window !== "undefined" ? window.innerWidth : 1280,
   );
   const [scrollAnchorVersion, setScrollAnchorVersion] = useState(0);
+  const [restoreDebugSnapshot, setRestoreDebugSnapshot] = useState<RestoreDebugSnapshot | null>(null);
   const [, forceDebugTick] = useState(0);
 
   const pageRenderWidth = getPageRenderWidth(viewportWidth, zoom);
@@ -64,6 +83,19 @@ export function ReaderPage() {
     const updateViewportWidth = () => setViewportWidth(window.innerWidth);
     window.addEventListener("resize", updateViewportWidth);
     return () => window.removeEventListener("resize", updateViewportWidth);
+  }, []);
+
+  useEffect(() => {
+    if (!("scrollRestoration" in window.history)) {
+      return;
+    }
+
+    const previous = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+
+    return () => {
+      window.history.scrollRestoration = previous;
+    };
   }, []);
 
   useEffect(() => {
@@ -99,7 +131,25 @@ export function ReaderPage() {
         setPageAspectRatios(ratios);
         const initialPage = opened.progress?.page ?? 1;
         const initialPosition = opened.progress?.position_in_page ?? 0;
-        pendingRestoreRef.current = { page: initialPage, position: initialPosition };
+        pendingRestoreRef.current = {
+          page: initialPage,
+          position: initialPosition,
+        };
+
+        const localResume = readLocalScrollResume(currentBookId);
+        if (
+          localResume &&
+          localResume.mode === "scroll" &&
+          Math.abs(localResume.zoom - zoom) < 0.001 &&
+          Math.abs(localResume.viewportWidth - window.innerWidth) <= 2
+        ) {
+          pendingRestoreRef.current = {
+            page: initialPage,
+            position: initialPosition,
+            scrollY: localResume.scrollY,
+          };
+        }
+
         trackedScrollProgressRef.current = { page: initialPage, position: initialPosition };
         setScrollAnchorVersion((value) => value + 1);
         setPageJumpValue(String(initialPage));
@@ -134,7 +184,7 @@ export function ReaderPage() {
   useEffect(() => {
     if (readerMode === "scroll" && state) {
       initialScrollDoneRef.current = false;
-      pendingRestoreRef.current = {
+      pendingRestoreRef.current = pendingRestoreRef.current ?? {
         page: state.currentPage,
         position: state.progress?.position_in_page ?? trackedScrollProgressRef.current.position,
       };
@@ -223,14 +273,29 @@ export function ReaderPage() {
       return;
     }
 
-    const rect = getPageMeasurementRect(target);
-    const absoluteTop = window.scrollY + rect.top;
-    const desiredScrollTop = absoluteTop + rect.height * pending.position - getReaderAnchorY();
-    window.scrollTo({ top: Math.max(0, desiredScrollTop), behavior: "auto" });
+    const hasLocalScrollTarget = pending.scrollY !== undefined;
+    const desiredScrollTop =
+      pending.scrollY ??
+      (() => {
+        const rect = getPageMeasurementRect(target);
+        const absoluteTop = window.scrollY + rect.top;
+        return absoluteTop + rect.height * pending.position - getReaderAnchorY();
+      })();
+
+    const exactScrollTarget = Math.max(0, desiredScrollTop);
+    setRestoreDebugSnapshot({
+      source: hasLocalScrollTarget ? "local-scroll" : "computed-anchor",
+      targetScrollY: exactScrollTarget,
+    });
+    forceWindowScroll(exactScrollTarget);
 
     let secondFrame = 0;
+    let thirdFrame = 0;
     const firstFrame = requestAnimationFrame(() => {
       secondFrame = requestAnimationFrame(() => {
+        if (pending.scrollY !== undefined) {
+          forceWindowScroll(exactScrollTarget);
+        }
         pendingRestoreRef.current = null;
         trackedScrollProgressRef.current = {
           page: pending.page,
@@ -238,6 +303,12 @@ export function ReaderPage() {
         };
         setScrollAnchorVersion((value) => value + 1);
         initialScrollDoneRef.current = true;
+
+        if (pending.scrollY !== undefined) {
+          thirdFrame = requestAnimationFrame(() => {
+            forceWindowScroll(exactScrollTarget);
+          });
+        }
       });
     });
 
@@ -245,6 +316,9 @@ export function ReaderPage() {
       cancelAnimationFrame(firstFrame);
       if (secondFrame) {
         cancelAnimationFrame(secondFrame);
+      }
+      if (thirdFrame) {
+        cancelAnimationFrame(thirdFrame);
       }
     };
   }, [readerMode, state?.currentPage, state?.documentHandle, pageRenderWidth]);
@@ -281,13 +355,22 @@ export function ReaderPage() {
     const positionInPage = readerMode === "scroll" ? trackedScrollProgressRef.current.position : 0;
 
     const timeout = window.setTimeout(() => {
+      if (readerMode === "scroll" && bookId && initialScrollDoneRef.current) {
+        writeLocalScrollResume(bookId, {
+          mode: readerMode,
+          zoom,
+          viewportWidth,
+          scrollY: window.scrollY,
+        });
+      }
+
       void saveBookProgress(bookId, currentPage, totalPages, positionInPage, previous).then((progress) => {
         setState((current) => (current ? { ...current, progress } : current));
       });
     }, 250);
 
     return () => window.clearTimeout(timeout);
-  }, [bookId, state?.currentPage, state?.totalPages, readerMode, scrollAnchorVersion]);
+  }, [bookId, state?.currentPage, state?.totalPages, readerMode, scrollAnchorVersion, zoom, viewportWidth]);
 
   useEffect(() => {
     if (!bookId || !state) {
@@ -304,6 +387,15 @@ export function ReaderPage() {
         return;
       }
 
+      if (readerMode === "scroll" && bookId && initialScrollDoneRef.current) {
+        writeLocalScrollResume(bookId, {
+          mode: readerMode,
+          zoom,
+          viewportWidth,
+          scrollY: window.scrollY,
+        });
+      }
+
       void saveBookProgress(bookId, currentPage, totalPages, positionInPage, previous);
     };
 
@@ -314,7 +406,7 @@ export function ReaderPage() {
       document.removeEventListener("visibilitychange", saveOnHide);
       window.removeEventListener("beforeunload", saveOnHide);
     };
-  }, [bookId, state, readerMode]);
+  }, [bookId, state, readerMode, zoom, viewportWidth]);
 
   function goToPage(pageNumber: number, behavior: ScrollBehavior = "smooth") {
     setState((current) => {
@@ -493,10 +585,13 @@ export function ReaderPage() {
       {readerDebug ? (
         <ReaderDebugPanel
           state={state}
+          bookId={bookId ?? ""}
           readerMode={readerMode}
           zoom={zoom}
+          viewportWidth={viewportWidth}
           pendingRestore={pendingRestoreRef.current}
           trackedProgress={trackedScrollProgressRef.current}
+          restoreDebugSnapshot={restoreDebugSnapshot}
         />
       ) : null}
 
@@ -670,7 +765,7 @@ function PageCanvas({
   }, [documentHandle, pageNumber, pageWidth, shouldRender]);
 
   const className = `page-paper page-paper-frame${active ? " active" : ""}`;
-  const paperHeight = Math.round(pageWidth * aspectRatio);
+  const paperHeight = pageWidth * aspectRatio;
 
   return (
     <section
@@ -730,10 +825,47 @@ function readStoredTheme(): ReaderTheme {
   return value === "sepia" || value === "slate" ? value : "light";
 }
 
+function getLocalScrollResumeKey(bookId: string) {
+  return `minibook:local-scroll:${bookId}`;
+}
+
+function readLocalScrollResume(bookId: string): LocalScrollResume | null {
+  const raw = localStorage.getItem(getLocalScrollResumeKey(bookId));
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<LocalScrollResume>;
+    if (
+      (parsed.mode === "scroll" || parsed.mode === "flip") &&
+      typeof parsed.zoom === "number" &&
+      typeof parsed.viewportWidth === "number" &&
+      typeof parsed.scrollY === "number"
+    ) {
+      return parsed as LocalScrollResume;
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+function writeLocalScrollResume(bookId: string, resume: LocalScrollResume) {
+  localStorage.setItem(getLocalScrollResumeKey(bookId), JSON.stringify(resume));
+}
+
 function getReaderAnchorY() {
   const topbar = document.querySelector(".reader-topbar") as HTMLElement | null;
   const topbarHeight = topbar?.offsetHeight ?? 72;
   return topbarHeight + 32;
+}
+
+function forceWindowScroll(top: number) {
+  window.scrollTo({ top, behavior: "auto" });
+  document.documentElement.scrollTop = top;
+  document.body.scrollTop = top;
 }
 
 function getPageRenderWidth(viewportWidth: number, zoom: number) {
@@ -748,23 +880,32 @@ function getPageMeasurementRect(element: HTMLDivElement) {
 
 type ReaderDebugPanelProps = {
   state: ReaderState;
+  bookId: string;
   readerMode: ReaderMode;
   zoom: number;
-  pendingRestore: { page: number; position: number } | null;
+  viewportWidth: number;
+  pendingRestore: PendingRestore | null;
   trackedProgress: { page: number; position: number };
+  restoreDebugSnapshot: RestoreDebugSnapshot | null;
 };
 
 function ReaderDebugPanel({
   state,
+  bookId,
   readerMode,
   zoom,
+  viewportWidth,
   pendingRestore,
   trackedProgress,
+  restoreDebugSnapshot,
 }: ReaderDebugPanelProps) {
+  const localResume = bookId ? readLocalScrollResume(bookId) : null;
+
   return (
     <aside className="reader-debug-panel">
       <div><strong>mode</strong> {readerMode}</div>
       <div><strong>zoom</strong> {zoom.toFixed(2)}</div>
+      <div><strong>viewport</strong> {viewportWidth}</div>
       <div><strong>state.page</strong> {state.currentPage}</div>
       <div><strong>saved.page</strong> {state.progress?.page ?? "-"}</div>
       <div><strong>saved.pos</strong> {formatDebugNumber(state.progress?.position_in_page)}</div>
@@ -772,6 +913,13 @@ function ReaderDebugPanel({
       <div><strong>tracked.pos</strong> {formatDebugNumber(trackedProgress.position)}</div>
       <div><strong>pending.page</strong> {pendingRestore?.page ?? "-"}</div>
       <div><strong>pending.pos</strong> {formatDebugNumber(pendingRestore?.position)}</div>
+      <div><strong>pending.scrollY</strong> {formatDebugNumber(pendingRestore?.scrollY)}</div>
+      <div><strong>local.mode</strong> {localResume?.mode ?? "-"}</div>
+      <div><strong>local.zoom</strong> {formatDebugNumber(localResume?.zoom)}</div>
+      <div><strong>local.width</strong> {localResume?.viewportWidth ?? "-"}</div>
+      <div><strong>local.scrollY</strong> {formatDebugNumber(localResume?.scrollY)}</div>
+      <div><strong>restore.src</strong> {restoreDebugSnapshot?.source ?? "-"}</div>
+      <div><strong>restore.scrollY</strong> {formatDebugNumber(restoreDebugSnapshot?.targetScrollY)}</div>
       <div><strong>scrollY</strong> {Math.round(window.scrollY)}</div>
       <div><strong>anchorY</strong> {Math.round(getReaderAnchorY())}</div>
     </aside>
