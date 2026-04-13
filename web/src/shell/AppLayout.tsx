@@ -1,5 +1,6 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { AppearanceProvider, useAppearance } from "@/shell/AppearanceContext";
+import { AuthProvider, useAuth } from "@/shell/AuthContext";
 
 const navItems = [
   { label: "Library", icon: "auto_stories", to: "/" },
@@ -11,7 +12,9 @@ const navItems = [
 export function AppLayout() {
   return (
     <AppearanceProvider>
-      <AppLayoutInner />
+      <AuthProvider>
+        <AppLayoutInner />
+      </AuthProvider>
     </AppearanceProvider>
   );
 }
@@ -20,6 +23,7 @@ function AppLayoutInner() {
   const location = useLocation();
   const isReader = location.pathname.startsWith("/read/");
   const { theme } = useAppearance();
+  const auth = useAuth();
 
   if (isReader) {
     return <div className={`app-theme app-theme-${theme}`}><Outlet /></div>;
@@ -49,17 +53,35 @@ function AppLayoutInner() {
         </nav>
 
         <div className="sidebar-footer">
-          <button
-            className="primary-button"
-            type="button"
-            disabled
-            title="Google Drive sync will be added in the next implementation step."
-          >
-            <MaterialIcon>cloud</MaterialIcon>
-            <span>Drive Sync Soon</span>
-          </button>
+          {auth.isConfigured ? (
+            auth.accessToken ? (
+              <button className="primary-button" type="button" onClick={auth.signOut}>
+                <MaterialIcon>cloud_done</MaterialIcon>
+                <span>Disconnect Drive</span>
+              </button>
+            ) : (
+              <button
+                className="primary-button"
+                type="button"
+                onClick={auth.signIn}
+                disabled={auth.status === "loading" || auth.status === "authorizing"}
+              >
+                <MaterialIcon>cloud</MaterialIcon>
+                <span>{auth.status === "authorizing" ? "Connecting..." : "Connect Drive"}</span>
+              </button>
+            )
+          ) : (
+            <button className="primary-button" type="button" disabled title="Add VITE_GOOGLE_CLIENT_ID in web/.env.local.">
+              <MaterialIcon>cloud_off</MaterialIcon>
+              <span>Drive Unconfigured</span>
+            </button>
+          )}
           <div className="subtle-note">
-            Local-first reading is live. Google Drive progress sync comes next.
+            {auth.accessToken
+              ? auth.profile?.email ?? "Connected to Google Drive."
+              : auth.isConfigured
+                ? auth.error ?? "Sign in to enable Google Drive progress sync."
+                : "Add VITE_GOOGLE_CLIENT_ID in web/.env.local to enable Google Drive sign-in."}
           </div>
         </div>
       </aside>
@@ -75,7 +97,9 @@ function AppLayoutInner() {
             />
           </label>
 
-          <div className="status-pill">Offline-first library</div>
+          <div className="status-pill">
+            {auth.accessToken ? "Drive connected" : "Offline-first library"}
+          </div>
         </header>
 
         <Outlet />

@@ -1,4 +1,5 @@
 import { useAppearance, type AppearanceTheme } from "@/shell/AppearanceContext";
+import { useAuth } from "@/shell/AuthContext";
 
 const THEMES: Array<{ value: AppearanceTheme; label: string; note: string }> = [
   { value: "light", label: "Light", note: "Bright paper and the original library look." },
@@ -8,6 +9,7 @@ const THEMES: Array<{ value: AppearanceTheme; label: string; note: string }> = [
 
 export function SettingsPage() {
   const { theme, setTheme } = useAppearance();
+  const auth = useAuth();
 
   return (
     <div className="page-wrap">
@@ -36,6 +38,51 @@ export function SettingsPage() {
             </button>
           ))}
         </div>
+      </section>
+
+      <section className="settings-card settings-card-spaced">
+        <div className="settings-section-title">Google Drive</div>
+        <div className="settings-auth-row">
+          <div className="settings-theme-copy">
+            <strong>
+              {auth.accessToken
+                ? auth.profile?.email ?? "Signed in"
+                : auth.isConfigured
+                  ? "Sign in to enable sync"
+                  : "Google sign-in is not configured"}
+            </strong>
+            <span>
+              {auth.accessToken
+                ? "You can now sync the currently open book from the reader."
+                : auth.isConfigured
+                  ? "Drive sync is optional. Local reading works without signing in."
+                  : "Add VITE_GOOGLE_CLIENT_ID in web/.env.local and restart the dev server."}
+            </span>
+          </div>
+
+          {auth.isConfigured ? (
+            auth.accessToken ? (
+              <button type="button" className="primary-button" onClick={auth.signOut}>
+                Disconnect Drive
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="primary-button"
+                onClick={auth.signIn}
+                disabled={auth.status === "loading" || auth.status === "authorizing"}
+              >
+                {auth.status === "authorizing" ? "Connecting..." : "Sign in with Google"}
+              </button>
+            )
+          ) : (
+            <button type="button" className="primary-button" disabled>
+              Missing Client ID
+            </button>
+          )}
+        </div>
+
+        {auth.error ? <div className="settings-inline-note">{auth.error}</div> : null}
       </section>
     </div>
   );

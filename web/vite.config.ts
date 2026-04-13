@@ -12,6 +12,7 @@ export default defineConfig({
       "@": resolve(currentDir, "./src"),
       "@minibook/shared-types": resolve(currentDir, "../packages/shared-types/src/index.ts"),
       "@minibook/sync-core": resolve(currentDir, "../packages/sync-core/src/index.ts"),
+      "@minibook/drive-client": resolve(currentDir, "../packages/drive-client/src/index.ts"),
     },
   },
 });

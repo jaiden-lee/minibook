@@ -4,6 +4,8 @@ import type { ProgressRecord } from "@minibook/shared-types";
 import { openLocalBook, saveBookProgress } from "@/lib/library";
 import { getPdfPageAspectRatio, loadPdfDocument, renderPdfPage, type PdfDocumentHandle } from "@/lib/pdf";
 import { useAppearance, type AppearanceTheme } from "@/shell/AppearanceContext";
+import { useAuth } from "@/shell/AuthContext";
+import { readRemoteBookProgress, syncBookProgressToDrive } from "@/lib/driveSync";
 
 type ReaderMode = "flip" | "scroll";
 
@@ -58,6 +60,8 @@ export function ReaderPage() {
   const { theme, setTheme } = useAppearance();
   const [showAppearanceMenu, setShowAppearanceMenu] = useState(false);
   const [chromeHidden, setChromeHidden] = useState(false);
+  const [driveMessage, setDriveMessage] = useState<string | null>(null);
+  const [driveBusy, setDriveBusy] = useState(false);
   const [pageJumpValue, setPageJumpValue] = useState("1");
   const [pageAspectRatios, setPageAspectRatios] = useState<Record<number, number>>({});
   const [readerDebug, setReaderDebug] = useState(() => localStorage.getItem(READER_DEBUG_KEY) === "1");
@@ -67,6 +71,7 @@ export function ReaderPage() {
   const [scrollAnchorVersion, setScrollAnchorVersion] = useState(0);
   const [restoreDebugSnapshot, setRestoreDebugSnapshot] = useState<RestoreDebugSnapshot | null>(null);
   const [, forceDebugTick] = useState(0);
+  const auth = useAuth();
 
   const pageRenderWidth = getPageRenderWidth(viewportWidth, zoom);
 
@@ -471,6 +476,34 @@ export function ReaderPage() {
     goToPage(nextPage);
   }
 
+  async function handleDriveSync() {
+    if (!bookId || !state || !auth.accessToken) {
+      return;
+    }
+
+    setDriveBusy(true);
+    setDriveMessage("Syncing progress to Drive...");
+
+    try {
+      const currentProgress = await saveBookProgress(
+        bookId,
+        state.currentPage,
+        state.totalPages,
+        readerMode === "scroll" ? trackedScrollProgressRef.current.position : 0,
+        state.progress,
+      );
+
+      setState((current) => (current ? { ...current, progress: currentProgress } : current));
+      const result = await syncBookProgressToDrive(auth.accessToken, bookId, currentProgress);
+      const remoteFiles = await readRemoteBookProgress(auth.accessToken, bookId);
+      setDriveMessage(`Synced page ${result.uploadedRecord.page}. Drive now has ${remoteFiles.length} device file${remoteFiles.length === 1 ? "" : "s"} for this book.`);
+    } catch (caught) {
+      setDriveMessage(caught instanceof Error ? caught.message : "Drive sync failed.");
+    } finally {
+      setDriveBusy(false);
+    }
+  }
+
   if (error) {
     return (
       <div className="reader-shell">
@@ -567,6 +600,14 @@ export function ReaderPage() {
             </button>
           </div>
 
+          {auth.accessToken ? (
+            <div className="reader-controls">
+              <button type="button" className="reader-pill-button" onClick={() => void handleDriveSync()} disabled={driveBusy}>
+                {driveBusy ? "Syncing..." : "Sync Now"}
+              </button>
+            </div>
+          ) : null}
+
           <div className="reader-controls">
             <button
               type="button"
@@ -590,6 +631,12 @@ export function ReaderPage() {
           <div className="reader-appearance-note">
             PDF colors are transformed client-side for sepia and slate themes.
           </div>
+        </div>
+      ) : null}
+
+      {driveMessage ? (
+        <div className="reader-drive-banner">
+          {driveMessage}
         </div>
       ) : null}
 

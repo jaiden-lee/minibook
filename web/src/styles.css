@@ -571,6 +571,13 @@ a {
   cursor: pointer;
 }
 
+.reader-pill-button:disabled,
+.primary-button:disabled,
+.secondary-button:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .reader-pill-button.active {
   background: var(--primary);
   color: var(--on-primary);
@@ -629,6 +636,20 @@ a {
   font-size: 0.78rem;
   line-height: 1.35;
   box-shadow: var(--whisper-shadow);
+}
+
+.reader-drive-banner {
+  position: fixed;
+  top: 5.2rem;
+  right: 1.5rem;
+  z-index: 34;
+  max-width: 24rem;
+  padding: 0.85rem 1rem;
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--reader-surface) 92%, transparent);
+  color: var(--reader-ink);
+  box-shadow: var(--whisper-shadow);
+  backdrop-filter: blur(12px);
 }
 
 .reader-debug-panel strong {
@@ -692,6 +713,10 @@ a {
   box-shadow: var(--whisper-shadow);
 }
 
+.settings-card-spaced {
+  margin-top: 1.5rem;
+}
+
 .settings-section-title {
   margin-bottom: 1rem;
   color: var(--on-surface-variant);
@@ -702,6 +727,13 @@ a {
 
 .settings-theme-grid {
   display: grid;
+  gap: 1rem;
+}
+
+.settings-auth-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 1rem;
 }
 
@@ -755,6 +787,12 @@ a {
 .settings-theme-copy span {
   color: var(--on-surface-variant);
   line-height: 1.5;
+}
+
+.settings-inline-note {
+  margin-top: 1rem;
+  color: var(--on-surface-variant);
+  font-size: 0.92rem;
 }
 
 .reader-main {
@@ -947,6 +985,11 @@ a {
     flex-wrap: wrap;
     justify-content: flex-end;
   }
+
+  .settings-auth-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 @media (max-width: 720px) {
@@ -975,5 +1018,11 @@ a {
   .reader-progress-group,
   .reader-page-jump {
     justify-content: space-between;
+  }
+
+  .reader-drive-banner {
+    left: 1rem;
+    right: 1rem;
+    max-width: none;
   }
 }

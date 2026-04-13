@@ -29,6 +29,9 @@
       ],
       "@minibook/sync-core": [
         "../packages/sync-core/src/index.ts"
+      ],
+      "@minibook/drive-client": [
+        "../packages/drive-client/src/index.ts"
       ]
     }
   },
