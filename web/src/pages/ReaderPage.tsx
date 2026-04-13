@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { ProgressRecord } from "@minibook/shared-types";
-import { openLocalBook, saveBookProgress } from "@/lib/library";
+import { resolveProgressRecord } from "@minibook/sync-core";
+import { openLocalBook, replaceLocalProgress, saveBookProgress } from "@/lib/library";
 import { getPdfPageAspectRatio, loadPdfDocument, renderPdfPage, type PdfDocumentHandle } from "@/lib/pdf";
 import { useAppearance, type AppearanceTheme } from "@/shell/AppearanceContext";
 import { useAuth } from "@/shell/AuthContext";
 import { readRemoteBookProgress, syncBookProgressToDrive } from "@/lib/driveSync";
+import { getOrCreateDeviceId } from "@/lib/id";
 
 type ReaderMode = "flip" | "scroll";
 
@@ -62,6 +64,7 @@ export function ReaderPage() {
   const [chromeHidden, setChromeHidden] = useState(false);
   const [driveMessage, setDriveMessage] = useState<string | null>(null);
   const [driveBusy, setDriveBusy] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<string | null>(null);
   const [pageJumpValue, setPageJumpValue] = useState("1");
   const [pageAspectRatios, setPageAspectRatios] = useState<Record<number, number>>({});
   const [readerDebug, setReaderDebug] = useState(() => localStorage.getItem(READER_DEBUG_KEY) === "1");
@@ -123,6 +126,9 @@ export function ReaderPage() {
         setPageAspectRatios({});
         setLoadingMessage("Checking latest progress...");
         const opened = await openLocalBook(currentBookId);
+        const remoteProgressPromise = auth.isAuthenticated
+          ? readRemoteBookProgress(currentBookId)
+          : Promise.resolve(null);
         setLoadingMessage("Preparing your reading view...");
         const documentHandle = await loadPdfDocument(opened.bytes);
         setLoadingMessage("Measuring page layout...");
@@ -132,9 +138,47 @@ export function ReaderPage() {
           return;
         }
 
+        let effectiveProgress = opened.progress;
+        if (auth.isAuthenticated) {
+          try {
+            const remoteResult = await remoteProgressPromise;
+            const remoteRecords = (remoteResult?.files ?? [])
+              .map((entry) => entry.record)
+              .filter((entry): entry is ProgressRecord => entry !== null);
+            const resolved = resolveProgressRecord(opened.progress ?? null, remoteRecords, getOrCreateDeviceId());
+
+            if (resolved.record) {
+              effectiveProgress = resolved.record;
+
+              const localMatchesResolved =
+                opened.progress &&
+                opened.progress.device_id === resolved.record.device_id &&
+                opened.progress.updated_at === resolved.record.updated_at &&
+                opened.progress.page === resolved.record.page &&
+                opened.progress.position_in_page === resolved.record.position_in_page;
+
+              if (!localMatchesResolved) {
+                effectiveProgress = await replaceLocalProgress(resolved.record, false);
+              }
+
+              setSyncStatus(
+                resolved.source === "local"
+                  ? "Using saved local progress."
+                  : `Using ${resolved.source === "remote-self" ? "this device's" : "another device's"} synced progress.`,
+              );
+            } else {
+              setSyncStatus("No synced progress found. Reading from local storage.");
+            }
+          } catch (caught) {
+            setSyncStatus(getSyncFailureMessage(caught));
+          }
+        } else {
+          setSyncStatus("Reading locally. Sign in to sync progress.");
+        }
+
         setPageAspectRatios(ratios);
-        const initialPage = opened.progress?.page ?? 1;
-        const initialPosition = opened.progress?.position_in_page ?? 0;
+        const initialPage = effectiveProgress?.page ?? 1;
+        const initialPosition = effectiveProgress?.position_in_page ?? 0;
         pendingRestoreRef.current = {
           page: initialPage,
           position: initialPosition,
@@ -161,7 +205,7 @@ export function ReaderPage() {
           title: opened.book.title,
           totalPages: documentHandle.numPages,
           currentPage: initialPage,
-          progress: opened.progress,
+          progress: effectiveProgress,
           documentHandle,
         });
 
@@ -175,7 +219,7 @@ export function ReaderPage() {
     return () => {
       disposed = true;
     };
-  }, [bookId, navigate]);
+  }, [auth.isAuthenticated, bookId, navigate]);
 
   useEffect(() => {
     if (!state) {
@@ -424,6 +468,48 @@ export function ReaderPage() {
     };
   }, [bookId, state, readerMode, zoom, viewportWidth]);
 
+  useEffect(() => {
+    if (!bookId || !state?.progress?.pending_sync || !auth.isAuthenticated) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      void performBackgroundSync("Syncing latest progress...");
+    }, 30_000);
+
+    return () => window.clearTimeout(timeout);
+  }, [auth.isAuthenticated, bookId, state?.progress?.pending_sync, state?.progress?.updated_at]);
+
+  useEffect(() => {
+    if (!bookId || !state?.progress?.pending_sync || !auth.isAuthenticated) {
+      return;
+    }
+
+    const handleOnline = () => {
+      void performBackgroundSync("Back online. Syncing progress...");
+    };
+
+    window.addEventListener("online", handleOnline);
+    return () => window.removeEventListener("online", handleOnline);
+  }, [auth.isAuthenticated, bookId, state?.progress?.pending_sync, state?.progress?.updated_at]);
+
+  useEffect(() => {
+    if (!bookId || !state?.progress?.pending_sync || !auth.isAuthenticated) {
+      return;
+    }
+
+    const syncOnHide = () => {
+      if (document.visibilityState === "visible") {
+        return;
+      }
+
+      void performBackgroundSync("Saving and syncing before you leave...");
+    };
+
+    document.addEventListener("visibilitychange", syncOnHide);
+    return () => document.removeEventListener("visibilitychange", syncOnHide);
+  }, [auth.isAuthenticated, bookId, state?.progress?.pending_sync, state?.progress?.updated_at]);
+
   function goToPage(pageNumber: number, behavior: ScrollBehavior = "smooth") {
     setState((current) => {
       if (!current) {
@@ -496,11 +582,32 @@ export function ReaderPage() {
       setState((current) => (current ? { ...current, progress: currentProgress } : current));
       const result = await syncBookProgressToDrive(bookId, currentProgress);
       const remoteFiles = await readRemoteBookProgress(bookId);
+      const syncedProgress = await replaceLocalProgress(result.progress, false);
+      setState((current) => (current ? { ...current, progress: syncedProgress } : current));
       setDriveMessage(`Synced page ${result.progress.page}. Drive now has ${remoteFiles.files.length} device file${remoteFiles.files.length === 1 ? "" : "s"} for this book.`);
+      setSyncStatus("Progress is synced.");
     } catch (caught) {
-      setDriveMessage(caught instanceof Error ? caught.message : "Drive sync failed.");
+      const message = caught instanceof Error ? caught.message : "Drive sync failed.";
+      setDriveMessage(message);
+      setSyncStatus(getSyncFailureMessage(caught));
     } finally {
       setDriveBusy(false);
+    }
+  }
+
+  async function performBackgroundSync(nextMessage: string) {
+    if (!bookId || !state?.progress || driveBusy) {
+      return;
+    }
+
+    try {
+      setSyncStatus(nextMessage);
+      const result = await syncBookProgressToDrive(bookId, state.progress);
+      const syncedProgress = await replaceLocalProgress(result.progress, false);
+      setState((current) => (current ? { ...current, progress: syncedProgress } : current));
+      setSyncStatus("Progress is synced.");
+    } catch (caught) {
+      setSyncStatus(getSyncFailureMessage(caught));
     }
   }
 
@@ -697,7 +804,7 @@ export function ReaderPage() {
         <div className="reader-progress-meta">
           <div className="reader-progress-group">
             <strong>{state.currentPage} of {state.totalPages}</strong>
-            <span>{percent}% completed</span>
+            <span>{syncStatus ? `${percent}% completed · ${syncStatus}` : `${percent}% completed`}</span>
           </div>
 
           <form className="reader-page-jump" onSubmit={handlePageJumpSubmit}>
@@ -980,6 +1087,25 @@ function ReaderDebugPanel({
 
 function formatDebugNumber(value: number | undefined) {
   return typeof value === "number" ? value.toFixed(4) : "-";
+}
+
+function getSyncFailureMessage(caught: unknown) {
+  if (!navigator.onLine) {
+    return "Offline. Saving progress locally.";
+  }
+
+  if (caught instanceof Error) {
+    const message = caught.message.toLowerCase();
+    if (message.includes("failed to fetch") || message.includes("network")) {
+      return "Network unavailable. Saving progress locally.";
+    }
+
+    if (message.includes("not signed in")) {
+      return "Sign in to sync. Progress is still saved locally.";
+    }
+  }
+
+  return "Sync unavailable. Progress is still saved locally.";
 }
 
 async function loadAllPageAspectRatios(

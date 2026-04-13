@@ -103,3 +103,13 @@ export async function saveBookProgress(
   await upsertProgress(progress);
   return progress;
 }
+
+export async function replaceLocalProgress(progress: ProgressRecord, pendingSync = false): Promise<ProgressRecord> {
+  const nextProgress: ProgressRecord = {
+    ...progress,
+    pending_sync: pendingSync,
+  };
+
+  await upsertProgress(nextProgress);
+  return nextProgress;
+}
