@@ -34,6 +34,29 @@ export async function readRemoteBookProgress(bookId: string) {
   return response.json() as Promise<{ files: Array<{ fileId: string; deviceId: string; modifiedTime?: string; record: ProgressRecord | null }> }>;
 }
 
+export function syncBookProgressToDriveKeepalive(bookId: string, progress: ProgressRecord) {
+  const payload = JSON.stringify({
+    bookId,
+    progress,
+  });
+
+  if (navigator.sendBeacon) {
+    const blob = new Blob([payload], { type: "text/plain;charset=UTF-8" });
+    if (navigator.sendBeacon("/api/drive/sync-book", blob)) {
+      return;
+    }
+  }
+
+  void fetch("/api/drive/sync-book", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: payload,
+    keepalive: true,
+  }).catch(() => undefined);
+}
+
 async function createApiError(response: Response, fallbackMessage: string) {
   try {
     const body = (await response.json()) as { error?: string };

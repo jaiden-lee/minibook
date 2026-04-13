@@ -151,6 +151,7 @@ export function LibraryPage() {
                 <div className="book-meta">
                   <h2>{book.title}</h2>
                   <p>{progress ? `Page ${progress.page}` : "Unread volume"}</p>
+                  {progress?.pending_sync ? <div className="book-sync-indicator">Pending sync</div> : null}
                 </div>
 
                 <div className="progress-row">

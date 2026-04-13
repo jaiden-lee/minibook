@@ -15,6 +15,7 @@ const port = Number(process.env.PORT ?? 3000);
 const googleConfig = readGoogleConfig();
 
 app.use(express.json({ limit: "1mb" }));
+app.use(express.text({ type: "text/plain", limit: "1mb" }));
 
 app.get("/api/auth/status", async (_request, response) => {
   if (!googleConfig.configured) {
@@ -107,7 +108,7 @@ app.post("/api/drive/sync-book", async (request, response) => {
     return;
   }
 
-  const body = request.body;
+  const body = parseSyncRequestBody(request.body);
   const bookId = typeof body?.bookId === "string" ? body.bookId : null;
   const progress = normalizeProgressRecord(body?.progress);
 
@@ -351,6 +352,18 @@ function normalizeProgressRecord(value) {
   }
 
   return null;
+}
+
+function parseSyncRequestBody(body) {
+  if (typeof body === "string") {
+    try {
+      return JSON.parse(body);
+    } catch {
+      return null;
+    }
+  }
+
+  return body;
 }
 
 const DRIVE_API_BASE = "https://www.googleapis.com/drive/v3";

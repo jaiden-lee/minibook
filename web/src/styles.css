@@ -431,6 +431,15 @@ a {
   font-style: italic;
 }
 
+.book-sync-indicator {
+  margin-top: 0.35rem;
+  color: var(--tertiary);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
 .progress-row {
   display: flex;
   align-items: center;

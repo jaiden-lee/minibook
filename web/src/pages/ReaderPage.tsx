@@ -6,7 +6,7 @@ import { openLocalBook, replaceLocalProgress, saveBookProgress } from "@/lib/lib
 import { getPdfPageAspectRatio, loadPdfDocument, renderPdfPage, type PdfDocumentHandle } from "@/lib/pdf";
 import { useAppearance, type AppearanceTheme } from "@/shell/AppearanceContext";
 import { useAuth } from "@/shell/AuthContext";
-import { readRemoteBookProgress, syncBookProgressToDrive } from "@/lib/driveSync";
+import { readRemoteBookProgress, syncBookProgressToDrive, syncBookProgressToDriveKeepalive } from "@/lib/driveSync";
 import { getOrCreateDeviceId } from "@/lib/id";
 
 type ReaderMode = "flip" | "scroll";
@@ -447,6 +447,14 @@ export function ReaderPage() {
         return;
       }
 
+      const nextProgress = buildCurrentProgressSnapshot(
+        bookId,
+        state.currentPage,
+        state.totalPages,
+        readerMode === "scroll" ? trackedScrollProgressRef.current.position : 0,
+        state.progress,
+      );
+
       if (readerMode === "scroll" && bookId && initialScrollDoneRef.current) {
         writeLocalScrollResume(bookId, {
           mode: readerMode,
@@ -456,17 +464,46 @@ export function ReaderPage() {
         });
       }
 
-      void saveBookProgress(bookId, currentPage, totalPages, positionInPage, previous);
+      void replaceLocalProgress(nextProgress, true);
+      if (auth.isAuthenticated) {
+        syncBookProgressToDriveKeepalive(bookId, nextProgress);
+      }
+    };
+
+    const syncOnPageHide = () => {
+      const nextProgress = buildCurrentProgressSnapshot(
+        bookId,
+        state.currentPage,
+        state.totalPages,
+        readerMode === "scroll" ? trackedScrollProgressRef.current.position : 0,
+        state.progress,
+      );
+
+      if (readerMode === "scroll" && initialScrollDoneRef.current) {
+        writeLocalScrollResume(bookId, {
+          mode: readerMode,
+          zoom,
+          viewportWidth,
+          scrollY: window.scrollY,
+        });
+      }
+
+      void replaceLocalProgress(nextProgress, true);
+      if (auth.isAuthenticated) {
+        syncBookProgressToDriveKeepalive(bookId, nextProgress);
+      }
     };
 
     document.addEventListener("visibilitychange", saveOnHide);
     window.addEventListener("beforeunload", saveOnHide);
+    window.addEventListener("pagehide", syncOnPageHide);
 
     return () => {
       document.removeEventListener("visibilitychange", saveOnHide);
       window.removeEventListener("beforeunload", saveOnHide);
+      window.removeEventListener("pagehide", syncOnPageHide);
     };
-  }, [bookId, state, readerMode, zoom, viewportWidth]);
+  }, [auth.isAuthenticated, bookId, state, readerMode, zoom, viewportWidth]);
 
   useEffect(() => {
     if (!bookId || !state?.progress?.pending_sync || !auth.isAuthenticated) {
@@ -1087,6 +1124,27 @@ function ReaderDebugPanel({
 
 function formatDebugNumber(value: number | undefined) {
   return typeof value === "number" ? value.toFixed(4) : "-";
+}
+
+function buildCurrentProgressSnapshot(
+  bookId: string,
+  page: number,
+  totalPages: number,
+  positionInPage: number,
+  previous?: ProgressRecord,
+): ProgressRecord {
+  const now = Date.now();
+  return {
+    book_id: bookId,
+    device_id: previous?.device_id ?? getOrCreateDeviceId(),
+    session_id: previous?.session_id ?? crypto.randomUUID(),
+    page,
+    position_in_page: positionInPage,
+    logical_progress: totalPages > 0 ? Math.min(1, Math.max(0, page / totalPages)) : 0,
+    opened_at: previous?.opened_at ?? now,
+    updated_at: now,
+    pending_sync: true,
+  };
 }
 
 function getSyncFailureMessage(caught: unknown) {
