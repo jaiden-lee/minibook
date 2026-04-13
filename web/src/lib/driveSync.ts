@@ -1,30 +1,44 @@
 import type { ProgressRecord } from "@minibook/shared-types";
-import { listBookProgressFiles, upsertBookProgressFile } from "@minibook/drive-client";
-import { getProgress } from "@/lib/db";
-import { getOrCreateDeviceId } from "@/lib/id";
 
 export type SyncBookResult = {
-  uploadedRecord: ProgressRecord;
+  synced: boolean;
   remoteFileCount: number;
+  progress: ProgressRecord;
 };
 
-export async function syncBookProgressToDrive(accessToken: string, bookId: string, progress?: ProgressRecord): Promise<SyncBookResult> {
-  const localProgress = progress ?? (await getProgress(bookId));
+export async function syncBookProgressToDrive(bookId: string, progress: ProgressRecord): Promise<SyncBookResult> {
+  const response = await fetch("/api/drive/sync-book", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      bookId,
+      progress,
+    }),
+  });
 
-  if (!localProgress) {
-    throw new Error("This book does not have saved local progress yet.");
+  if (!response.ok) {
+    throw await createApiError(response, "Drive sync failed.");
   }
 
-  const deviceId = getOrCreateDeviceId();
-  await upsertBookProgressFile(accessToken, bookId, deviceId, localProgress);
-  const remoteFiles = await listBookProgressFiles(accessToken, bookId);
-
-  return {
-    uploadedRecord: localProgress,
-    remoteFileCount: remoteFiles.length,
-  };
+  return response.json() as Promise<SyncBookResult>;
 }
 
-export async function readRemoteBookProgress(accessToken: string, bookId: string) {
-  return listBookProgressFiles(accessToken, bookId);
+export async function readRemoteBookProgress(bookId: string) {
+  const response = await fetch(`/api/drive/book-progress/${encodeURIComponent(bookId)}`);
+  if (!response.ok) {
+    throw await createApiError(response, "Unable to load Drive progress.");
+  }
+
+  return response.json() as Promise<{ files: Array<{ fileId: string; deviceId: string; modifiedTime?: string; record: ProgressRecord | null }> }>;
+}
+
+async function createApiError(response: Response, fallbackMessage: string) {
+  try {
+    const body = (await response.json()) as { error?: string };
+    return new Error(body.error ?? fallbackMessage);
+  } catch {
+    return new Error(fallbackMessage);
+  }
 }

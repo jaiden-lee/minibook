@@ -2,12 +2,19 @@
   "name": "minibook",
   "private": true,
   "version": "0.1.0",
+  "type": "module",
   "workspaces": [
     "web",
     "packages/*"
   ],
   "scripts": {
     "dev:web": "npm --workspace web run dev",
-    "build:web": "npm --workspace web run build"
+    "dev:server": "node --env-file=server/.env.local server/index.mjs",
+    "build:web": "npm --workspace web run build",
+    "start:server": "node --env-file=server/.env.local server/index.mjs",
+    "start:app": "npm run build:web && npm run start:server"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
   }
 }

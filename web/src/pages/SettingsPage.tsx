@@ -45,24 +45,24 @@ export function SettingsPage() {
         <div className="settings-auth-row">
           <div className="settings-theme-copy">
             <strong>
-              {auth.accessToken
+              {auth.isAuthenticated
                 ? auth.profile?.email ?? "Signed in"
                 : auth.isConfigured
                   ? "Sign in to enable sync"
                   : "Google sign-in is not configured"}
             </strong>
             <span>
-              {auth.accessToken
+              {auth.isAuthenticated
                 ? "You can now sync the currently open book from the reader."
                 : auth.isConfigured
                   ? "Drive sync is optional. Local reading works without signing in."
-                  : "Add VITE_GOOGLE_CLIENT_ID in web/.env.local and restart the dev server."}
+                  : "Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in server/.env.local and restart the server."}
             </span>
           </div>
 
           {auth.isConfigured ? (
-            auth.accessToken ? (
-              <button type="button" className="primary-button" onClick={auth.signOut}>
+            auth.isAuthenticated ? (
+              <button type="button" className="primary-button" onClick={() => void auth.signOut()}>
                 Disconnect Drive
               </button>
             ) : (
@@ -70,9 +70,9 @@ export function SettingsPage() {
                 type="button"
                 className="primary-button"
                 onClick={auth.signIn}
-                disabled={auth.status === "loading" || auth.status === "authorizing"}
+                disabled={auth.status === "loading"}
               >
-                {auth.status === "authorizing" ? "Connecting..." : "Sign in with Google"}
+                Sign in with Google
               </button>
             )
           ) : (

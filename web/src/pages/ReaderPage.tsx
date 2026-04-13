@@ -477,7 +477,7 @@ export function ReaderPage() {
   }
 
   async function handleDriveSync() {
-    if (!bookId || !state || !auth.accessToken) {
+    if (!bookId || !state) {
       return;
     }
 
@@ -494,9 +494,9 @@ export function ReaderPage() {
       );
 
       setState((current) => (current ? { ...current, progress: currentProgress } : current));
-      const result = await syncBookProgressToDrive(auth.accessToken, bookId, currentProgress);
-      const remoteFiles = await readRemoteBookProgress(auth.accessToken, bookId);
-      setDriveMessage(`Synced page ${result.uploadedRecord.page}. Drive now has ${remoteFiles.length} device file${remoteFiles.length === 1 ? "" : "s"} for this book.`);
+      const result = await syncBookProgressToDrive(bookId, currentProgress);
+      const remoteFiles = await readRemoteBookProgress(bookId);
+      setDriveMessage(`Synced page ${result.progress.page}. Drive now has ${remoteFiles.files.length} device file${remoteFiles.files.length === 1 ? "" : "s"} for this book.`);
     } catch (caught) {
       setDriveMessage(caught instanceof Error ? caught.message : "Drive sync failed.");
     } finally {
@@ -600,7 +600,7 @@ export function ReaderPage() {
             </button>
           </div>
 
-          {auth.accessToken ? (
+          {auth.isAuthenticated ? (
             <div className="reader-controls">
               <button type="button" className="reader-pill-button" onClick={() => void handleDriveSync()} disabled={driveBusy}>
                 {driveBusy ? "Syncing..." : "Sync Now"}

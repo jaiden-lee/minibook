@@ -54,8 +54,8 @@ function AppLayoutInner() {
 
         <div className="sidebar-footer">
           {auth.isConfigured ? (
-            auth.accessToken ? (
-              <button className="primary-button" type="button" onClick={auth.signOut}>
+            auth.isAuthenticated ? (
+              <button className="primary-button" type="button" onClick={() => void auth.signOut()}>
                 <MaterialIcon>cloud_done</MaterialIcon>
                 <span>Disconnect Drive</span>
               </button>
@@ -64,24 +64,24 @@ function AppLayoutInner() {
                 className="primary-button"
                 type="button"
                 onClick={auth.signIn}
-                disabled={auth.status === "loading" || auth.status === "authorizing"}
+                disabled={auth.status === "loading"}
               >
                 <MaterialIcon>cloud</MaterialIcon>
-                <span>{auth.status === "authorizing" ? "Connecting..." : "Connect Drive"}</span>
+                <span>Connect Drive</span>
               </button>
             )
           ) : (
-            <button className="primary-button" type="button" disabled title="Add VITE_GOOGLE_CLIENT_ID in web/.env.local.">
+            <button className="primary-button" type="button" disabled title="Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in server/.env.local.">
               <MaterialIcon>cloud_off</MaterialIcon>
               <span>Drive Unconfigured</span>
             </button>
           )}
           <div className="subtle-note">
-            {auth.accessToken
+            {auth.isAuthenticated
               ? auth.profile?.email ?? "Connected to Google Drive."
               : auth.isConfigured
                 ? auth.error ?? "Sign in to enable Google Drive progress sync."
-                : "Add VITE_GOOGLE_CLIENT_ID in web/.env.local to enable Google Drive sign-in."}
+                : "Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in server/.env.local to enable Google Drive sign-in."}
           </div>
         </div>
       </aside>
@@ -98,7 +98,7 @@ function AppLayoutInner() {
           </label>
 
           <div className="status-pill">
-            {auth.accessToken ? "Drive connected" : "Offline-first library"}
+            {auth.isAuthenticated ? "Drive connected" : "Offline-first library"}
           </div>
         </header>
 
