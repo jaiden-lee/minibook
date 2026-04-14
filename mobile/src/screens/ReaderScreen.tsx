@@ -60,6 +60,13 @@ export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScr
   }, []);
 
   useEffect(() => {
+    const nextTheme = resolveThemeFromPdfAppearance(theme, pdfAppearance);
+    if (nextTheme !== theme) {
+      onThemeChange(nextTheme);
+    }
+  }, [theme, pdfAppearance, onThemeChange]);
+
+  useEffect(() => {
     void setSetting(READER_PDF_APPEARANCE_KEY, pdfAppearance);
   }, [pdfAppearance]);
 
@@ -113,13 +120,10 @@ export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScr
 
     if (savedAppearance === "light" || savedAppearance === "sepia" || savedAppearance === "dark" || savedAppearance === "darkContrast") {
       setPdfAppearance(savedAppearance);
-      onThemeChange(resolveThemeFromPdfAppearance(theme, savedAppearance));
     } else if (theme === "slate") {
       setPdfAppearance("dark");
-      onThemeChange("slate");
     } else if (theme === "sepia") {
       setPdfAppearance("sepia");
-      onThemeChange("sepia");
     }
 
     if (savedMarginMode === "original" || savedMarginMode === "reduced") {
@@ -157,20 +161,16 @@ export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScr
 
   function cyclePdfAppearance() {
     setPdfAppearance((current) => {
-      const next = (() => {
-        switch (current) {
-          case "light":
-            return "sepia";
-          case "sepia":
-            return "dark";
-          case "dark":
-            return "darkContrast";
-          default:
-            return "light";
-        }
-      })();
-      onThemeChange(resolveThemeFromPdfAppearance(theme, next));
-      return next;
+      switch (current) {
+        case "light":
+          return "sepia";
+        case "sepia":
+          return "dark";
+        case "dark":
+          return "darkContrast";
+        default:
+          return "light";
+      }
     });
   }
 
