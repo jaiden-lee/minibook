@@ -1,21 +1,61 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { ChangeEvent } from "react";
+import type { RemoteProgressInsight } from "@minibook/shared-types";
 import type { LibraryBook } from "@/lib/library";
 import { canChooseDirectory, importBooksFromChosenDirectory, importBooksFromFiles, loadLibrary } from "@/lib/library";
+import { getRemoteInsightMessage, loadRemoteProgressInsight } from "@/lib/remoteProgress";
+import { useAuth } from "@/shell/AuthContext";
 import { useSync } from "@/shell/SyncContext";
 
 export function LibraryPage() {
   const [books, setBooks] = useState<LibraryBook[]>([]);
+  const [remoteInsights, setRemoteInsights] = useState<Record<string, RemoteProgressInsight>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const auth = useAuth();
   const sync = useSync();
 
   useEffect(() => {
     void refreshLibrary();
   }, [sync.pendingCount, sync.failedCount, sync.lastSyncedAt]);
+
+  useEffect(() => {
+    if (!auth.isAuthenticated || !navigator.onLine || !books.length) {
+      setRemoteInsights({});
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadInsights() {
+      const nextEntries = await Promise.all(
+        books.map(async ({ book, progress }) => {
+          try {
+            return [book.book_id, await loadRemoteProgressInsight(book.book_id, progress ?? null)] as const;
+          } catch {
+            return [book.book_id, null] as const;
+          }
+        }),
+      );
+
+      if (cancelled) {
+        return;
+      }
+
+      setRemoteInsights(
+        Object.fromEntries(nextEntries.filter((entry): entry is readonly [string, RemoteProgressInsight] => entry[1] !== null)),
+      );
+    }
+
+    void loadInsights();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [auth.isAuthenticated, books, sync.lastSyncedAt]);
 
   async function refreshLibrary() {
     setLoading(true);
@@ -150,6 +190,8 @@ export function LibraryPage() {
         <section className="library-grid">
           {books.map(({ book, progress }) => {
             const percent = Math.round((progress?.logical_progress ?? 0) * 100);
+            const remoteInsight = remoteInsights[book.book_id];
+            const remoteMessage = remoteInsight ? getRemoteInsightMessage(remoteInsight) : null;
 
             return (
               <Link
@@ -171,6 +213,11 @@ export function LibraryPage() {
                   {progress ? (
                     <div className={`book-sync-indicator book-sync-indicator-${sync.getBookSyncState(book.book_id, progress)}`}>
                       {sync.getBookSyncMessage(book.book_id, progress)}
+                    </div>
+                  ) : null}
+                  {remoteMessage ? (
+                    <div className="book-remote-indicator">
+                      {remoteMessage}
                     </div>
                   ) : null}
                 </div>

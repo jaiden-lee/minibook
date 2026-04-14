@@ -1,4 +1,4 @@
-import type { ProgressRecord } from "@minibook/shared-types";
+import type { ProgressRecord, RemoteProgressFile } from "@minibook/shared-types";
 
 export type SyncBookResult = {
   synced: boolean;
@@ -31,7 +31,7 @@ export async function readRemoteBookProgress(bookId: string) {
     throw await createApiError(response, "Unable to load Drive progress.");
   }
 
-  return response.json() as Promise<{ files: Array<{ fileId: string; deviceId: string; modifiedTime?: string; record: ProgressRecord | null }> }>;
+  return response.json() as Promise<{ files: RemoteProgressFile[] }>;
 }
 
 export function syncBookProgressToDriveKeepalive(bookId: string, progress: ProgressRecord) {

@@ -27,6 +27,24 @@ export interface ResolvedProgress {
   reason: string;
 }
 
+export interface RemoteProgressFile {
+  fileId: string;
+  deviceId: string;
+  modifiedTime?: string;
+  record: ProgressRecord | null;
+}
+
+export interface RemoteProgressInsight {
+  device_count: number;
+  other_device_count: number;
+  latest_remote_updated_at: number | null;
+  latest_remote_device_id: string | null;
+  latest_remote_record: ProgressRecord | null;
+  latest_other_device_record: ProgressRecord | null;
+  newest_source: "none" | "remote-self" | "remote-other";
+  newer_remote_other_available: boolean;
+}
+
 export type BookSourceKind = "file-handle" | "directory-handle" | "imported-blob";
 
 export interface BookAssetRecord {

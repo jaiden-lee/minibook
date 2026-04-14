@@ -1,4 +1,4 @@
-import type { ProgressRecord, ResolvedProgress } from "@minibook/shared-types";
+import type { ProgressRecord, RemoteProgressInsight, ResolvedProgress } from "@minibook/shared-types";
 
 export const PAGE_BACKWARD_GUARD = 5;
 export const LOGICAL_PROGRESS_BACKWARD_GUARD = 0.03;
@@ -70,6 +70,44 @@ export function resolveProgressRecord(
   );
 }
 
+export function summarizeRemoteProgress(
+  localRecord: ProgressRecord | null | undefined,
+  remoteRecords: ProgressRecord[],
+  deviceId: string,
+): RemoteProgressInsight {
+  const newestRemote = [...remoteRecords].sort(compareRecordByRecency)[0] ?? null;
+  const newestRemoteOther = [...remoteRecords]
+    .filter((record) => record.device_id !== deviceId)
+    .sort(compareRecordByRecency)[0] ?? null;
+  const deviceIds = new Set(remoteRecords.map((record) => record.device_id));
+  const baseline = localRecord ?? newestRemote;
+  const newerRemoteOtherAvailable = !!(
+    newestRemoteOther &&
+    (!baseline || newestRemoteOther.updated_at > baseline.updated_at) &&
+    (!baseline || !isSuspiciousBackwardProgress(newestRemoteOther, baseline))
+  );
+
+  let newestSource: RemoteProgressInsight["newest_source"] = "none";
+  if (newestRemote) {
+    newestSource = newestRemote.device_id === deviceId ? "remote-self" : "remote-other";
+  }
+
+  return {
+    device_count: deviceIds.size,
+    other_device_count: new Set(
+      remoteRecords
+        .filter((record) => record.device_id !== deviceId)
+        .map((record) => record.device_id),
+    ).size,
+    latest_remote_updated_at: newestRemote?.updated_at ?? null,
+    latest_remote_device_id: newestRemote?.device_id ?? null,
+    latest_remote_record: newestRemote,
+    latest_other_device_record: newestRemoteOther,
+    newest_source: newestSource,
+    newer_remote_other_available: newerRemoteOtherAvailable,
+  };
+}
+
 function compareProgressByRecency(
   left: { record: ProgressRecord },
   right: { record: ProgressRecord },
@@ -98,4 +136,8 @@ function compareProgressByDistance(
   }
 
   return right.record.updated_at - left.record.updated_at;
+}
+
+function compareRecordByRecency(left: ProgressRecord, right: ProgressRecord) {
+  return compareProgressByRecency({ record: left }, { record: right });
 }

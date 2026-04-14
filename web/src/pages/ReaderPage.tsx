@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { Link, useParams } from "react-router-dom";
-import type { ProgressRecord } from "@minibook/shared-types";
-import { resolveProgressRecord } from "@minibook/sync-core";
+import type { ProgressRecord, RemoteProgressInsight } from "@minibook/shared-types";
+import { resolveProgressRecord, summarizeRemoteProgress } from "@minibook/sync-core";
 import { openLocalBook, replaceLocalProgress, saveBookProgress } from "@/lib/library";
 import { getPdfPageAspectRatio, loadPdfDocument, renderPdfPage, type PdfDocumentHandle } from "@/lib/pdf";
+import { getReaderRemoteNotice, loadRemoteProgressInsight } from "@/lib/remoteProgress";
 import { useAppearance, type AppearanceTheme } from "@/shell/AppearanceContext";
 import { useAuth } from "@/shell/AuthContext";
 import { useSync } from "@/shell/SyncContext";
@@ -50,6 +51,7 @@ export function ReaderPage() {
   const initialScrollDoneRef = useRef(false);
   const pendingRestoreRef = useRef<PendingRestore | null>(null);
   const trackedScrollProgressRef = useRef<{ page: number; position: number }>({ page: 1, position: 0 });
+  const dismissedRemoteNoticeAtRef = useRef<number | null>(null);
   const latestUnmountSnapshotRef = useRef<{
     bookId: string | null;
     state: ReaderState | null;
@@ -80,6 +82,8 @@ export function ReaderPage() {
   const [driveMessage, setDriveMessage] = useState<string | null>(null);
   const [driveBusy, setDriveBusy] = useState(false);
   const [syncStatus, setSyncStatus] = useState<string | null>(null);
+  const [remoteInsight, setRemoteInsight] = useState<RemoteProgressInsight | null>(null);
+  const [remoteNotice, setRemoteNotice] = useState<string | null>(null);
   const [pageJumpValue, setPageJumpValue] = useState("1");
   const [pageAspectRatios, setPageAspectRatios] = useState<Record<number, number>>({});
   const [readerDebug, setReaderDebug] = useState(() => localStorage.getItem(READER_DEBUG_KEY) === "1");
@@ -152,6 +156,8 @@ export function ReaderPage() {
     async function load() {
       try {
         setError(null);
+        setRemoteInsight(null);
+        setRemoteNotice(null);
         setPageAspectRatios({});
         setLoadingMessage("Checking latest progress...");
         const opened = await openLocalBook(currentBookId);
@@ -174,7 +180,10 @@ export function ReaderPage() {
             const remoteRecords = (remoteResult?.files ?? [])
               .map((entry) => entry.record)
               .filter((entry): entry is ProgressRecord => entry !== null);
+            const insight = summarizeRemoteProgress(opened.progress ?? null, remoteRecords, getOrCreateDeviceId());
             const resolved = resolveProgressRecord(opened.progress ?? null, remoteRecords, getOrCreateDeviceId());
+            setRemoteInsight(insight);
+            setRemoteNotice(getReaderRemoteNotice(insight));
 
             if (resolved.record) {
               effectiveProgress = resolved.record;
@@ -199,9 +208,13 @@ export function ReaderPage() {
               setSyncStatus("No synced progress found. Reading from local storage.");
             }
           } catch (caught) {
+            setRemoteInsight(null);
+            setRemoteNotice(null);
             setSyncStatus(getSyncFailureMessage(caught));
           }
         } else {
+          setRemoteInsight(null);
+          setRemoteNotice(null);
           setSyncStatus("Reading locally. Sign in to sync progress.");
         }
 
@@ -627,6 +640,69 @@ export function ReaderPage() {
     return () => document.removeEventListener("visibilitychange", syncOnHide);
   }, [auth.isAuthenticated, bookId, state?.progress?.pending_sync, state?.progress?.updated_at]);
 
+  useEffect(() => {
+    if (!bookId || !state || !auth.isAuthenticated || !navigator.onLine) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const poll = async () => {
+      const liveProgress = getLiveReaderProgress(
+        pageRefs.current,
+        readerMode,
+        state.currentPage,
+        trackedScrollProgressRef.current,
+      );
+
+      try {
+        const insight = await loadRemoteProgressInsight(
+          bookId,
+          state.progress
+            ? {
+                ...state.progress,
+                page: liveProgress.page,
+                position_in_page: liveProgress.position,
+                logical_progress: state.totalPages > 0 ? Math.min(1, Math.max(0, liveProgress.page / state.totalPages)) : 0,
+              }
+            : null,
+        );
+
+        if (cancelled) {
+          return;
+        }
+
+        setRemoteInsight(insight);
+
+        const latestOtherUpdate = insight.latest_other_device_record?.updated_at ?? null;
+        if (
+          latestOtherUpdate &&
+          dismissedRemoteNoticeAtRef.current &&
+          latestOtherUpdate <= dismissedRemoteNoticeAtRef.current
+        ) {
+          return;
+        }
+
+        setRemoteNotice(getReaderRemoteNotice(insight));
+      } catch {
+        if (!cancelled) {
+          setRemoteNotice(null);
+        }
+      }
+    };
+
+    const interval = window.setInterval(() => {
+      void poll();
+    }, 45_000);
+
+    void poll();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [auth.isAuthenticated, bookId, readerMode, state]);
+
   function goToPage(pageNumber: number, behavior: ScrollBehavior = "smooth") {
     setState((current) => {
       if (!current) {
@@ -740,7 +816,13 @@ export function ReaderPage() {
       setState((current) => (current ? { ...current, progress: currentProgress } : current));
       const result = await sync.syncBook(bookId, currentProgress);
       const remoteFiles = await readRemoteBookProgress(bookId);
+      const remoteRecords = remoteFiles.files
+        .map((entry) => entry.record)
+        .filter((entry): entry is ProgressRecord => entry !== null);
+      const insight = summarizeRemoteProgress(result.progress, remoteRecords, getOrCreateDeviceId());
       setState((current) => (current ? { ...current, progress: result.progress } : current));
+      setRemoteInsight(insight);
+      setRemoteNotice(getReaderRemoteNotice(insight));
       setDriveMessage(`Synced page ${result.progress.page}. Drive now has ${remoteFiles.files.length} device file${remoteFiles.files.length === 1 ? "" : "s"} for this book.`);
       setSyncStatus("Progress is synced.");
     } catch (caught) {
@@ -905,6 +987,22 @@ export function ReaderPage() {
         </div>
       ) : null}
 
+      {remoteNotice ? (
+        <div className="reader-remote-banner">
+          <span>{remoteNotice}</span>
+          <button
+            type="button"
+            className="reader-remote-dismiss"
+            onClick={() => {
+              dismissedRemoteNoticeAtRef.current = remoteInsight?.latest_other_device_record?.updated_at ?? Date.now();
+              setRemoteNotice(null);
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+      ) : null}
+
       {readerDebug ? (
         <ReaderDebugPanel
           state={state}
@@ -978,6 +1076,11 @@ export function ReaderPage() {
           </form>
 
           <div className="reader-progress-group">
+            {remoteInsight?.device_count ? (
+              <span className="reader-remote-meta">
+                {remoteInsight.device_count} device{remoteInsight.device_count === 1 ? "" : "s"} synced
+              </span>
+            ) : null}
             <button type="button" className="icon-button" onClick={() => moveRelative(-1)} aria-label="Previous page">
               <MaterialIcon>chevron_left</MaterialIcon>
             </button>
