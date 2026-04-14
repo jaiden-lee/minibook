@@ -1,5 +1,5 @@
 import { ActivityIndicator, Linking, StyleSheet, Text, View } from "react-native";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import Pdf from "react-native-pdf";
 import type { PdfProps } from "react-native-pdf";
 import type { AppearanceTheme } from "../theme";
@@ -8,18 +8,22 @@ import { mobileThemes } from "../theme";
 type NativePdfViewProps = {
   fileUri: string;
   theme: AppearanceTheme;
-  page: number;
+  initialPage: number;
+  targetPage: number | null;
   onLoaded: (numberOfPages: number) => void;
   onPageChanged: (page: number, numberOfPages: number) => void;
+  onSingleTap: () => void;
   onError: (message: string) => void;
 };
 
 export function NativePdfView({
   fileUri,
   theme,
-  page,
+  initialPage,
+  targetPage,
   onLoaded,
   onPageChanged,
+  onSingleTap,
   onError,
 }: NativePdfViewProps) {
   const palette = mobileThemes[theme];
@@ -29,12 +33,20 @@ export function NativePdfView({
     cache: false,
   }), [fileUri]);
 
+  useEffect(() => {
+    if (!targetPage) {
+      return;
+    }
+
+    pdfRef.current?.setPage(targetPage);
+  }, [targetPage]);
+
   return (
     <View style={[styles.wrap, { backgroundColor: palette.surfaceLowest, shadowColor: palette.shadow }]}>
       <Pdf
         ref={pdfRef}
         source={source}
-        page={page}
+        page={initialPage}
         fitPolicy={0}
         minScale={1}
         maxScale={4}
@@ -54,6 +66,7 @@ export function NativePdfView({
         )}
         onLoadComplete={(numberOfPages) => onLoaded(numberOfPages)}
         onPageChanged={onPageChanged}
+        onPageSingleTap={() => onSingleTap()}
         onPressLink={(url) => {
           void Linking.openURL(url).catch(() => {
             onError(`Unable to open link: ${url}`);

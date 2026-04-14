@@ -15,6 +15,7 @@ type ReaderState = {
   title: string;
   fileUri: string;
   totalPages: number;
+  initialPage: number;
   currentPage: number;
   progress: ProgressRecord | null;
 };
@@ -26,6 +27,8 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [viewerMessage, setViewerMessage] = useState<string | null>(null);
+  const [chromeHidden, setChromeHidden] = useState(false);
+  const [pendingPageJump, setPendingPageJump] = useState<number | null>(null);
 
   useEffect(() => {
     void loadBook();
@@ -57,9 +60,11 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
         title: opened.book.title,
         fileUri: opened.fileUri,
         totalPages: Math.max(opened.progress?.page ?? 1, 1),
+        initialPage,
         currentPage: initialPage,
         progress: opened.progress,
       });
+      setPendingPageJump(null);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to open this PDF on mobile.");
     } finally {
@@ -75,6 +80,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
 
       const nextPage = Math.max(1, current.currentPage + delta);
       setPageJumpValue(String(nextPage));
+      setPendingPageJump(nextPage);
       return {
         ...current,
         currentPage: nextPage,
@@ -99,6 +105,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
           }
         : current
     ));
+    setPendingPageJump(parsed);
   }
 
   if (loading) {
@@ -131,7 +138,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: palette.background }]}>
-      <View style={[styles.topBar, { backgroundColor: `${palette.surface}EE` }]}>
+      <View style={[styles.topBar, { backgroundColor: `${palette.surface}EE` }, chromeHidden ? styles.topBarHidden : null]}>
         <Pressable onPress={onBack} style={[styles.chromeButton, { backgroundColor: palette.surfaceLow }]}>
           <Text style={[styles.chromeButtonLabel, { color: palette.onSurface }]}>Back</Text>
         </Pressable>
@@ -146,7 +153,8 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
         <NativePdfView
           fileUri={state.fileUri}
           theme={theme}
-          page={state.currentPage}
+          initialPage={state.initialPage}
+          targetPage={pendingPageJump}
           onLoaded={(numberOfPages) => {
             setState((current) => (current ? {
               ...current,
@@ -155,11 +163,15 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
           }}
           onPageChanged={(page, numberOfPages) => {
             setPageJumpValue(String(page));
+            setPendingPageJump((current) => (current === page ? null : current));
             setState((current) => (current ? {
               ...current,
               currentPage: page,
               totalPages: numberOfPages,
             } : current));
+          }}
+          onSingleTap={() => {
+            setChromeHidden((current) => !current);
           }}
           onError={(message) => {
             setViewerMessage(message);
@@ -167,7 +179,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
         />
       </View>
 
-      <View style={[styles.footer, { backgroundColor: `${palette.surfaceHighest}F0` }]}>
+      <View style={[styles.footer, { backgroundColor: `${palette.surfaceHighest}F0` }, chromeHidden ? styles.footerHidden : null]}>
         <View style={styles.footerRow}>
           <View>
             <Text style={[styles.progressKicker, { color: palette.onSurfaceVariant }]}>Progress</Text>
@@ -252,6 +264,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
   },
+  topBarHidden: {
+    display: "none",
+  },
   chromeButton: {
     borderRadius: 14,
     paddingHorizontal: 14,
@@ -287,6 +302,9 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
     gap: 16,
+  },
+  footerHidden: {
+    display: "none",
   },
   footerRow: {
     flexDirection: "row",
