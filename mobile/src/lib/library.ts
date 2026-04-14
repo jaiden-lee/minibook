@@ -102,7 +102,7 @@ export async function indexAndroidLibraryDirectory(directoryUri?: string | null)
 
   for (const fileUri of pdfUris) {
     const fileHash = await hashFileSha256(fileUri);
-    const name = decodeURIComponent(fileUri.split("/").pop() ?? `${fileHash}.pdf`);
+    const name = extractDisplayNameFromUri(fileUri, fileHash);
     const fileInfo = await FileSystem.getInfoAsync(fileUri);
     const existing = await getBook(fileHash);
     const now = Date.now();
@@ -168,4 +168,19 @@ function createSessionId() {
 
 function stripPdfExtension(name: string) {
   return name.replace(/\.pdf$/i, "");
+}
+
+function extractDisplayNameFromUri(uri: string, fallbackHash: string) {
+  const decoded = decodeURIComponent(uri);
+  const parts = decoded.split("/");
+  const rawName = parts[parts.length - 1] ?? `${fallbackHash}.pdf`;
+
+  if (rawName.includes(":") && !rawName.toLowerCase().endsWith(".pdf")) {
+    const afterColon = rawName.split(":").pop();
+    if (afterColon) {
+      return afterColon;
+    }
+  }
+
+  return rawName;
 }

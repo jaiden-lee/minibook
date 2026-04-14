@@ -119,17 +119,19 @@ export function LibraryScreen({
             <BookCard key={item.book.book_id} item={item} theme={theme} onPress={() => onOpenBook(item.book.book_id)} />
           ))}
 
-          <Pressable
-            onPress={() => void (Platform.OS === "android" ? handleChooseFolder() : handleImport())}
-            style={[styles.importCard, { backgroundColor: palette.surfaceLow, borderColor: `${palette.outline}30` }]}
-          >
-            <View style={styles.importCardInner}>
-              <Text style={[styles.importGlyph, { color: palette.primary }]}>+</Text>
-              <Text style={[styles.importLabel, { color: palette.onSurface }]}>
-                {busy ? "Working..." : Platform.OS === "android" ? "Choose Folder" : "Import PDF"}
-              </Text>
-            </View>
-          </Pressable>
+          {!(Platform.OS === "android" && libraryDirectoryUri) ? (
+            <Pressable
+              onPress={() => void handleImport()}
+              style={[styles.importCard, { backgroundColor: palette.surfaceLow, borderColor: `${palette.outline}30` }]}
+            >
+              <View style={styles.importCardInner}>
+                <Text style={[styles.importGlyph, { color: palette.primary }]}>+</Text>
+                <Text style={[styles.importLabel, { color: palette.onSurface }]}>
+                  {busy ? "Working..." : Platform.OS === "android" ? "Import One PDF" : "Import PDF"}
+                </Text>
+              </View>
+            </Pressable>
+          ) : null}
         </View>
 
         {!filteredBooks.length ? (
