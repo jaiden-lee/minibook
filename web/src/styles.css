@@ -302,11 +302,16 @@ a {
   width: 100%;
   border: 0;
   background: transparent;
+  color: var(--on-surface);
   outline: none;
 }
 
 .search-box input:disabled {
   cursor: default;
+}
+
+.search-box input::placeholder {
+  color: var(--on-surface-variant);
 }
 
 .status-pill {
@@ -1001,6 +1006,7 @@ a {
 .reader-text-layer {
   overflow: hidden;
   color: transparent;
+  z-index: 1;
   pointer-events: auto;
   user-select: text;
 }
@@ -1020,6 +1026,7 @@ a {
 }
 
 .reader-link-layer {
+  z-index: 2;
   pointer-events: none;
 }
 

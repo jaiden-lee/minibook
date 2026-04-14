@@ -4,6 +4,7 @@ import type { ProgressRecord, RemoteProgressInsight } from "@minibook/shared-typ
 import { resolveProgressRecord, summarizeRemoteProgress } from "@minibook/sync-core";
 import { openLocalBook, replaceLocalProgress, saveBookProgress } from "@/lib/library";
 import {
+  debugPdfAnnotations,
   getPdfLinkLayerItems,
   getPdfPageAspectRatio,
   getPdfTextLayerItems,
@@ -454,6 +455,21 @@ export function ReaderPage() {
 
     return () => window.clearTimeout(timeout);
   }, [pageRenderWidth, readerMode, state?.documentHandle]);
+
+  useEffect(() => {
+    if (!readerDebug || !state) {
+      return;
+    }
+
+    void debugPdfAnnotations(state.documentHandle, state.currentPage).then((annotations) => {
+      console.log("[minibook] PDF annotations", {
+        page: state.currentPage,
+        annotations,
+      });
+    }).catch((error) => {
+      console.log("[minibook] PDF annotation debug failed", error);
+    });
+  }, [readerDebug, state?.currentPage, state?.documentHandle]);
 
   useEffect(() => {
     if (!bookId || !state) {

@@ -179,6 +179,26 @@ export async function getPdfLinkLayerItems(
   return items;
 }
 
+export async function debugPdfAnnotations(
+  documentHandle: PdfDocumentHandle,
+  pageNumber: number,
+) {
+  const page = await documentHandle.getPage(pageNumber);
+  const annotations = await page.getAnnotations({ intent: "display" });
+
+  return annotations.map((annotation, index) => ({
+    index,
+    subtype: annotation.subtype ?? null,
+    url: typeof annotation.url === "string" ? annotation.url : null,
+    unsafeUrl: typeof annotation.unsafeUrl === "string" ? annotation.unsafeUrl : null,
+    dest: "dest" in annotation ? annotation.dest ?? null : null,
+    action: "action" in annotation ? annotation.action ?? null : null,
+    rect: Array.isArray(annotation.rect) ? annotation.rect : null,
+    annotationType: "annotationType" in annotation ? annotation.annotationType ?? null : null,
+    hasBorderStyle: "borderStyle" in annotation ? !!annotation.borderStyle : false,
+  }));
+}
+
 async function resolveDestination(documentHandle: PdfDocumentHandle, destination: unknown): Promise<number | null> {
   if (!destination) {
     return null;
