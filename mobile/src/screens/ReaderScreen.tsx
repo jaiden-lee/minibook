@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ActivityIndicator, Pressable, SafeAreaView, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, Pressable, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ProgressRecord } from "@minibook/shared-types";
 import { NativePdfView } from "../components/NativePdfView";
 import { openLocalBook, saveBookProgress } from "../lib/library";
@@ -28,7 +28,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [viewerMessage, setViewerMessage] = useState<string | null>(null);
   const [chromeHidden, setChromeHidden] = useState(false);
-  const [pendingPageJump, setPendingPageJump] = useState<number | null>(null);
+  const [pendingPageJump, setPendingPageJump] = useState<{ page: number; id: number } | null>(null);
 
   useEffect(() => {
     void loadBook();
@@ -80,7 +80,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
 
       const nextPage = Math.max(1, current.currentPage + delta);
       setPageJumpValue(String(nextPage));
-      setPendingPageJump(nextPage);
+      setPendingPageJump({ page: nextPage, id: Date.now() });
       return {
         ...current,
         currentPage: nextPage,
@@ -105,12 +105,13 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
           }
         : current
     ));
-    setPendingPageJump(parsed);
+    setPendingPageJump({ page: parsed, id: Date.now() });
   }
 
   if (loading) {
     return (
       <SafeAreaView style={[styles.root, { backgroundColor: palette.background }]}>
+        <StatusBar barStyle={theme === "slate" ? "light-content" : "dark-content"} backgroundColor={palette.background} />
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={palette.primary} />
           <Text style={[styles.loadingTitle, { color: palette.onSurface }]}>Opening book</Text>
@@ -123,6 +124,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
   if (error || !state) {
     return (
       <SafeAreaView style={[styles.root, { backgroundColor: palette.background }]}>
+        <StatusBar barStyle={theme === "slate" ? "light-content" : "dark-content"} backgroundColor={palette.background} />
         <View style={styles.centered}>
           <Text style={[styles.loadingTitle, { color: palette.onSurface }]}>Reader unavailable</Text>
           <Text style={[styles.loadingCopy, { color: palette.onSurfaceVariant }]}>{error ?? "Unknown reader error."}</Text>
@@ -135,9 +137,15 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
   }
 
   const percent = Math.round((state.currentPage / Math.max(state.totalPages, 1)) * 100);
+  const chromeBackground = resolveChromeBackground(theme, chromeHidden, palette.background, palette.surface);
 
   return (
-    <SafeAreaView style={[styles.root, { backgroundColor: palette.background }]}>
+    <SafeAreaView style={[styles.root, { backgroundColor: chromeBackground }]}>
+      <StatusBar
+        barStyle={theme === "slate" ? "light-content" : "dark-content"}
+        backgroundColor={chromeBackground}
+        translucent={false}
+      />
       <View style={[styles.topBar, { backgroundColor: `${palette.surface}EE` }, chromeHidden ? styles.topBarHidden : null]}>
         <Pressable onPress={onBack} style={[styles.chromeButton, { backgroundColor: palette.surfaceLow }]}>
           <Text style={[styles.chromeButtonLabel, { color: palette.onSurface }]}>Back</Text>
@@ -154,7 +162,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
           fileUri={state.fileUri}
           theme={theme}
           initialPage={state.initialPage}
-          targetPage={pendingPageJump}
+          jumpRequest={pendingPageJump}
           onLoaded={(numberOfPages) => {
             setState((current) => (current ? {
               ...current,
@@ -163,7 +171,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
           }}
           onPageChanged={(page, numberOfPages) => {
             setPageJumpValue(String(page));
-            setPendingPageJump((current) => (current === page ? null : current));
+            setPendingPageJump((current) => (current?.page === page ? null : current));
             setState((current) => (current ? {
               ...current,
               currentPage: page,
@@ -223,6 +231,19 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
       </View>
     </SafeAreaView>
   );
+}
+
+function resolveChromeBackground(
+  theme: AppearanceTheme,
+  chromeHidden: boolean,
+  hiddenColor: string,
+  visibleColor: string,
+) {
+  if (chromeHidden) {
+    return hiddenColor;
+  }
+
+  return theme === "slate" ? visibleColor : hiddenColor;
 }
 
 const styles = StyleSheet.create({

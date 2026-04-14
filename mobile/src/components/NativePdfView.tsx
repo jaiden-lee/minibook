@@ -9,7 +9,7 @@ type NativePdfViewProps = {
   fileUri: string;
   theme: AppearanceTheme;
   initialPage: number;
-  targetPage: number | null;
+  jumpRequest: { page: number; id: number } | null;
   onLoaded: (numberOfPages: number) => void;
   onPageChanged: (page: number, numberOfPages: number) => void;
   onSingleTap: () => void;
@@ -20,7 +20,7 @@ export function NativePdfView({
   fileUri,
   theme,
   initialPage,
-  targetPage,
+  jumpRequest,
   onLoaded,
   onPageChanged,
   onSingleTap,
@@ -28,25 +28,36 @@ export function NativePdfView({
 }: NativePdfViewProps) {
   const palette = mobileThemes[theme];
   const pdfRef = useRef<Pdf>(null);
+  const loadedRef = useRef(false);
+  const pendingJumpRef = useRef<number | null>(initialPage);
   const source = useMemo<PdfProps["source"]>(() => ({
     uri: fileUri,
     cache: false,
   }), [fileUri]);
 
   useEffect(() => {
-    if (!targetPage) {
+    loadedRef.current = false;
+    pendingJumpRef.current = initialPage;
+  }, [fileUri, initialPage]);
+
+  useEffect(() => {
+    if (!jumpRequest) {
       return;
     }
 
-    pdfRef.current?.setPage(targetPage);
-  }, [targetPage]);
+    if (loadedRef.current) {
+      pdfRef.current?.setPage(jumpRequest.page);
+      return;
+    }
+
+    pendingJumpRef.current = jumpRequest.page;
+  }, [jumpRequest?.id]);
 
   return (
     <View style={[styles.wrap, { backgroundColor: palette.surfaceLowest, shadowColor: palette.shadow }]}>
       <Pdf
         ref={pdfRef}
         source={source}
-        page={initialPage}
         fitPolicy={0}
         minScale={1}
         maxScale={4}
@@ -64,7 +75,14 @@ export function NativePdfView({
             </Text>
           </View>
         )}
-        onLoadComplete={(numberOfPages) => onLoaded(numberOfPages)}
+        onLoadComplete={(numberOfPages) => {
+          loadedRef.current = true;
+          if (pendingJumpRef.current !== null) {
+            pdfRef.current?.setPage(pendingJumpRef.current);
+            pendingJumpRef.current = null;
+          }
+          onLoaded(numberOfPages);
+        }}
         onPageChanged={onPageChanged}
         onPageSingleTap={() => onSingleTap()}
         onPressLink={(url) => {
