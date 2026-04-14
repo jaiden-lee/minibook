@@ -3,7 +3,16 @@ import { Link, useParams } from "react-router-dom";
 import type { ProgressRecord, RemoteProgressInsight } from "@minibook/shared-types";
 import { resolveProgressRecord, summarizeRemoteProgress } from "@minibook/sync-core";
 import { openLocalBook, replaceLocalProgress, saveBookProgress } from "@/lib/library";
-import { getPdfPageAspectRatio, loadPdfDocument, renderPdfPage, type PdfDocumentHandle } from "@/lib/pdf";
+import {
+  getPdfLinkLayerItems,
+  getPdfPageAspectRatio,
+  getPdfTextLayerItems,
+  loadPdfDocument,
+  renderPdfPage,
+  type PdfDocumentHandle,
+  type PdfLinkLayerItem,
+  type PdfTextLayerItem,
+} from "@/lib/pdf";
 import { getReaderRemoteNotice, loadRemoteProgressInsight } from "@/lib/remoteProgress";
 import { useAppearance, type AppearanceTheme } from "@/shell/AppearanceContext";
 import { useAuth } from "@/shell/AuthContext";
@@ -1033,6 +1042,7 @@ export function ReaderPage() {
                 pageWidth={pageRenderWidth}
                 theme={theme}
                 aspectRatio={pageAspectRatios[state.currentPage]}
+                onNavigateToPage={goToPage}
                 onMount={(element) => bindPageRef(pageRefs.current, state.currentPage, element, setPageMountVersion)}
               />
             </div>
@@ -1048,6 +1058,7 @@ export function ReaderPage() {
                   aspectRatio={pageAspectRatios[pageNumber]}
                   active={pageNumber === state.currentPage}
                   shouldRender={renderedPages.has(pageNumber)}
+                  onNavigateToPage={goToPage}
                   onMount={(element) => bindPageRef(pageRefs.current, pageNumber, element, setPageMountVersion)}
                 />
               ))}
@@ -1106,6 +1117,7 @@ type PageCanvasProps = {
   aspectRatio?: number;
   active?: boolean;
   shouldRender?: boolean;
+  onNavigateToPage: (pageNumber: number, behavior?: ScrollBehavior) => void;
   onMount: (element: HTMLDivElement | null) => void;
 };
 
@@ -1117,12 +1129,15 @@ function PageCanvas({
   aspectRatio: providedAspectRatio,
   active = false,
   shouldRender = true,
+  onNavigateToPage,
   onMount,
 }: PageCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const [aspectRatio, setAspectRatio] = useState(providedAspectRatio ?? DEFAULT_PAGE_ASPECT_RATIO);
   const [renderError, setRenderError] = useState<string | null>(null);
+  const [textItems, setTextItems] = useState<PdfTextLayerItem[]>([]);
+  const [linkItems, setLinkItems] = useState<PdfLinkLayerItem[]>([]);
 
   useEffect(() => {
     const element = wrapRef.current;
@@ -1190,6 +1205,41 @@ function PageCanvas({
     };
   }, [documentHandle, pageNumber, pageWidth, shouldRender]);
 
+  useEffect(() => {
+    if (!shouldRender) {
+      setTextItems([]);
+      setLinkItems([]);
+      return;
+    }
+
+    let cancelled = false;
+
+    async function loadInteractiveLayers() {
+      try {
+        const [nextTextItems, nextLinkItems] = await Promise.all([
+          getPdfTextLayerItems(documentHandle, pageNumber, pageWidth),
+          getPdfLinkLayerItems(documentHandle, pageNumber, pageWidth),
+        ]);
+
+        if (!cancelled) {
+          setTextItems(nextTextItems);
+          setLinkItems(nextLinkItems);
+        }
+      } catch {
+        if (!cancelled) {
+          setTextItems([]);
+          setLinkItems([]);
+        }
+      }
+    }
+
+    void loadInteractiveLayers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [documentHandle, pageNumber, pageWidth, shouldRender]);
+
   const className = `page-paper page-paper-frame${active ? " active" : ""}`;
   const paperHeight = pageWidth * aspectRatio;
 
@@ -1205,7 +1255,65 @@ function PageCanvas({
         {renderError ? (
           <div className="page-loading">{renderError}</div>
         ) : shouldRender ? (
-          <canvas ref={canvasRef} className={`reader-canvas reader-canvas-${theme}`} />
+          <>
+            <canvas ref={canvasRef} className={`reader-canvas reader-canvas-${theme}`} />
+            <div className="reader-text-layer" aria-hidden="true">
+              {textItems.map((item) => (
+                <span
+                  key={item.id}
+                  className="reader-text-span"
+                  style={{
+                    left: `${item.left}px`,
+                    top: `${item.top}px`,
+                    width: `${item.width}px`,
+                    height: `${item.height}px`,
+                    fontSize: `${item.fontSize}px`,
+                    transform: `rotate(${item.angle}rad)`,
+                  }}
+                >
+                  {item.text}
+                </span>
+              ))}
+            </div>
+            <div className="reader-link-layer">
+              {linkItems.map((item) => (
+                item.url ? (
+                  <a
+                    key={item.id}
+                    className="reader-link-hitbox"
+                    href={item.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      left: `${item.left}px`,
+                      top: `${item.top}px`,
+                      width: `${item.width}px`,
+                      height: `${item.height}px`,
+                    }}
+                    onClick={(event) => event.stopPropagation()}
+                    aria-label="Open PDF link"
+                  />
+                ) : item.pageNumber ? (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className="reader-link-hitbox reader-link-hitbox-button"
+                    style={{
+                      left: `${item.left}px`,
+                      top: `${item.top}px`,
+                      width: `${item.width}px`,
+                      height: `${item.height}px`,
+                    }}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onNavigateToPage(item.pageNumber!, "auto");
+                    }}
+                    aria-label={`Jump to page ${item.pageNumber}`}
+                  />
+                ) : null
+              ))}
+            </div>
+          </>
         ) : (
           <div className="page-canvas-placeholder" style={{ width: `${pageWidth}px`, height: `${paperHeight}px` }} />
         )}

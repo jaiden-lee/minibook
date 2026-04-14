@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import type { ChangeEvent } from "react";
 import type { RemoteProgressInsight } from "@minibook/shared-types";
 import type { LibraryBook } from "@/lib/library";
@@ -15,8 +15,10 @@ export function LibraryPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [searchParams] = useSearchParams();
   const auth = useAuth();
   const sync = useSync();
+  const searchQuery = (searchParams.get("q") ?? "").trim().toLowerCase();
 
   useEffect(() => {
     void refreshLibrary();
@@ -118,6 +120,22 @@ export function LibraryPage() {
     return `${books.length} local books, ${inProgress} with saved reading progress. ${syncSummary}.`;
   }, [books, sync.failedCount, sync.pendingCount]);
 
+  const filteredBooks = useMemo(() => {
+    if (!searchQuery) {
+      return books;
+    }
+
+    return books.filter(({ book }) => {
+      const haystack = [
+        book.title,
+        book.original_filename,
+        book.local_path,
+      ].join("\n").toLowerCase();
+
+      return haystack.includes(searchQuery);
+    });
+  }, [books, searchQuery]);
+
   return (
     <div className="page-wrap">
       <section className="hero">
@@ -186,9 +204,9 @@ export function LibraryPage() {
             <p>Reassembling local metadata and saved reading positions.</p>
           </div>
         </div>
-      ) : books.length ? (
+      ) : filteredBooks.length ? (
         <section className="library-grid">
-          {books.map(({ book, progress }) => {
+          {filteredBooks.map(({ book, progress }) => {
             const percent = Math.round((progress?.logical_progress ?? 0) * 100);
             const remoteInsight = remoteInsights[book.book_id];
             const remoteMessage = remoteInsight ? getRemoteInsightMessage(remoteInsight) : null;
@@ -248,6 +266,13 @@ export function LibraryPage() {
             </div>
           </button>
         </section>
+      ) : searchQuery ? (
+        <div className="empty-state">
+          <div className="empty-state-card">
+            <h2>No books match that search.</h2>
+            <p>Try a title, filename, or part of the local path.</p>
+          </div>
+        </div>
       ) : (
         <div className="empty-state">
           <div className="empty-state-card">

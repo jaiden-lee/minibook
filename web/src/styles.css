@@ -36,11 +36,31 @@ body,
   min-height: 100%;
 }
 
+html,
+body {
+  background: var(--background);
+}
+
 body {
   margin: 0;
   background: var(--background);
   color: var(--on-background);
   font-family: "Inter", sans-serif;
+}
+
+html[data-theme="light"],
+body[data-theme="light"] {
+  background: #f9f9f7;
+}
+
+html[data-theme="sepia"],
+body[data-theme="sepia"] {
+  background: #f1eadc;
+}
+
+html[data-theme="slate"],
+body[data-theme="slate"] {
+  background: #121514;
 }
 
 .app-theme {
@@ -283,6 +303,10 @@ a {
   border: 0;
   background: transparent;
   outline: none;
+}
+
+.search-box input:disabled {
+  cursor: default;
 }
 
 .status-pill {
@@ -927,6 +951,7 @@ a {
 }
 
 .page-paper-content {
+  position: relative;
   display: flex;
   align-items: flex-start;
   justify-content: center;
@@ -965,6 +990,53 @@ a {
 
 .reader-canvas-slate {
   filter: invert(0.965) hue-rotate(180deg) saturate(0.68) brightness(0.74) contrast(0.96) sepia(0.14);
+}
+
+.reader-text-layer,
+.reader-link-layer {
+  position: absolute;
+  inset: 0;
+}
+
+.reader-text-layer {
+  overflow: hidden;
+  color: transparent;
+  pointer-events: auto;
+  user-select: text;
+}
+
+.reader-text-span {
+  position: absolute;
+  transform-origin: left bottom;
+  white-space: pre;
+  color: transparent;
+  line-height: 1;
+  cursor: text;
+}
+
+.reader-text-span::selection {
+  color: transparent;
+  background: color-mix(in srgb, var(--tertiary-fixed-dim) 55%, transparent);
+}
+
+.reader-link-layer {
+  pointer-events: none;
+}
+
+.reader-link-hitbox {
+  position: absolute;
+  display: block;
+  pointer-events: auto;
+  background: transparent;
+  box-shadow: inset 0 0 0 0 transparent;
+}
+
+.reader-link-hitbox:hover {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--tertiary-fixed-dim) 45%, transparent);
+}
+
+.reader-link-hitbox-button {
+  cursor: pointer;
 }
 
 .reader-footer {

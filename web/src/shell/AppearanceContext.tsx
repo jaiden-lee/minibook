@@ -18,6 +18,11 @@ export function AppearanceProvider({ children }: { children: ReactNode }) {
     localStorage.setItem(APPEARANCE_THEME_KEY, theme);
   }, [theme]);
 
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    document.body.dataset.theme = theme;
+  }, [theme]);
+
   const value = useMemo(() => ({ theme, setTheme }), [theme]);
 
   return <AppearanceContext.Provider value={value}>{children}</AppearanceContext.Provider>;

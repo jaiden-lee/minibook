@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useSearchParams } from "react-router-dom";
 import { useEffect } from "react";
 import { AppearanceProvider, useAppearance } from "@/shell/AppearanceContext";
 import { AuthProvider, useAuth } from "@/shell/AuthContext";
@@ -6,8 +6,6 @@ import { SyncProvider, useSync } from "@/shell/SyncContext";
 
 const navItems = [
   { label: "Library", icon: "auto_stories", to: "/" },
-  { label: "Recent", icon: "history", to: "/" },
-  { label: "Collections", icon: "library_books", to: "/" },
   { label: "Settings", icon: "settings", to: "/settings" },
 ];
 
@@ -25,10 +23,13 @@ export function AppLayout() {
 
 function AppLayoutInner() {
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const isReader = location.pathname.startsWith("/read/");
+  const isLibrary = location.pathname === "/";
   const { theme } = useAppearance();
   const auth = useAuth();
   const sync = useSync();
+  const searchQuery = searchParams.get("q") ?? "";
 
   useEffect(() => {
     if (!isReader) {
@@ -103,8 +104,19 @@ function AppLayoutInner() {
             <MaterialIcon>search</MaterialIcon>
             <input
               type="text"
-              placeholder="Search your sanctuary..."
-              disabled
+              placeholder={isLibrary ? "Search title, filename, or path..." : "Search is available in the library"}
+              value={searchQuery}
+              onChange={(event) => {
+                const next = new URLSearchParams(searchParams);
+                const value = event.target.value.trimStart();
+                if (value) {
+                  next.set("q", value);
+                } else {
+                  next.delete("q");
+                }
+                setSearchParams(next, { replace: true });
+              }}
+              disabled={!isLibrary}
             />
           </label>
 
