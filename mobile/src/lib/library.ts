@@ -9,6 +9,7 @@ import { hashFileSha256 } from "./hash";
 
 const LIBRARY_DIRECTORY = `${FileSystem.documentDirectory}library`;
 const LIBRARY_DIRECTORY_URI_KEY = "library_directory_uri";
+const READER_CACHE_DIRECTORY = `${FileSystem.cacheDirectory}reader-cache`;
 
 export async function ensureLibraryDirectory() {
   const info = await FileSystem.getInfoAsync(LIBRARY_DIRECTORY);
@@ -131,10 +132,12 @@ export async function openLocalBook(bookId: string) {
     throw new Error("This PDF is no longer available on the device.");
   }
 
+  const readableUri = await resolveReadablePdfUri(book);
+
   return {
     book,
     progress,
-    fileUri: book.local_path,
+    fileUri: readableUri,
   };
 }
 
@@ -183,4 +186,30 @@ function extractDisplayNameFromUri(uri: string, fallbackHash: string) {
   }
 
   return rawName;
+}
+
+async function resolveReadablePdfUri(book: BookRecord) {
+  if (!book.local_path.startsWith("content://")) {
+    return book.local_path;
+  }
+
+  await ensureReaderCacheDirectory();
+  const cachedUri = `${READER_CACHE_DIRECTORY}/${book.book_id}.pdf`;
+  const cachedInfo = await FileSystem.getInfoAsync(cachedUri);
+
+  if (!cachedInfo.exists) {
+    await FileSystem.copyAsync({
+      from: book.local_path,
+      to: cachedUri,
+    });
+  }
+
+  return cachedUri;
+}
+
+async function ensureReaderCacheDirectory() {
+  const info = await FileSystem.getInfoAsync(READER_CACHE_DIRECTORY);
+  if (!info.exists) {
+    await FileSystem.makeDirectoryAsync(READER_CACHE_DIRECTORY, { intermediates: true });
+  }
 }

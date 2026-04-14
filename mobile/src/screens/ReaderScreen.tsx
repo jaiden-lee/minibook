@@ -25,6 +25,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
   const [pageJumpValue, setPageJumpValue] = useState("1");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [viewerMessage, setViewerMessage] = useState<string | null>(null);
 
   useEffect(() => {
     void loadBook();
@@ -48,6 +49,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
     try {
       setLoading(true);
       setError(null);
+      setViewerMessage(null);
       const opened = await openLocalBook(bookId);
       const initialPage = opened.progress?.page ?? 1;
       setPageJumpValue(String(initialPage));
@@ -141,7 +143,28 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
       </View>
 
       <View style={[styles.readerCanvasWrap, { backgroundColor: palette.surfaceLow }]}>
-        <NativePdfView fileUri={state.fileUri} theme={theme} />
+        <NativePdfView
+          fileUri={state.fileUri}
+          theme={theme}
+          page={state.currentPage}
+          onLoaded={(numberOfPages) => {
+            setState((current) => (current ? {
+              ...current,
+              totalPages: numberOfPages,
+            } : current));
+          }}
+          onPageChanged={(page, numberOfPages) => {
+            setPageJumpValue(String(page));
+            setState((current) => (current ? {
+              ...current,
+              currentPage: page,
+              totalPages: numberOfPages,
+            } : current));
+          }}
+          onError={(message) => {
+            setViewerMessage(message);
+          }}
+        />
       </View>
 
       <View style={[styles.footer, { backgroundColor: `${palette.surfaceHighest}F0` }]}>
@@ -166,6 +189,12 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
         <View style={[styles.progressLine, { backgroundColor: `${palette.outline}30` }]}>
           <View style={[styles.progressLineFill, { backgroundColor: palette.primary, width: `${percent}%` }]} />
         </View>
+
+        {viewerMessage ? (
+          <Text style={[styles.viewerMessage, { color: palette.onSurfaceVariant }]}>
+            {viewerMessage}
+          </Text>
+        ) : null}
 
         <View style={[styles.pageJumpWrap, { backgroundColor: palette.surfaceLow }]}>
           <Text style={[styles.pageJumpLabel, { color: palette.onSurfaceVariant }]}>Jump to page</Text>
@@ -288,6 +317,11 @@ const styles = StyleSheet.create({
   },
   progressLineFill: {
     height: "100%",
+  },
+  viewerMessage: {
+    fontFamily: "Inter_500Medium",
+    fontSize: 12,
+    lineHeight: 18,
   },
   pageJumpWrap: {
     flexDirection: "row",

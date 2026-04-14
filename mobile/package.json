@@ -12,8 +12,11 @@
     "@expo-google-fonts/inter": "^0.4.1",
     "@expo-google-fonts/manrope": "^0.4.1",
     "@expo-google-fonts/newsreader": "^0.4.1",
+    "@config-plugins/react-native-blob-util": "11.0.0",
+    "@config-plugins/react-native-pdf": "11.0.0",
     "@minibook/shared-types": "0.1.0",
     "@minibook/sync-core": "0.1.0",
+    "crypto-js": "^4.2.0",
     "expo": "^53.0.0",
     "expo-crypto": "^14.0.0",
     "expo-dev-client": "^5.0.0",
@@ -25,6 +28,8 @@
     "js-sha256": "^0.11.1",
     "react": "^19.1.0",
     "react-native": "^0.79.0",
+    "react-native-blob-util": "0.21.2",
+    "react-native-pdf": "6.7.7",
     "react-native-safe-area-context": "^5.0.0"
   },
   "devDependencies": {
