@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { ChangeEvent } from "react";
 import type { LibraryBook } from "@/lib/library";
 import { canChooseDirectory, importBooksFromChosenDirectory, importBooksFromFiles, loadLibrary } from "@/lib/library";
+import { useSync } from "@/shell/SyncContext";
 
 export function LibraryPage() {
   const [books, setBooks] = useState<LibraryBook[]>([]);
@@ -10,10 +11,11 @@ export function LibraryPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const sync = useSync();
 
   useEffect(() => {
     void refreshLibrary();
-  }, []);
+  }, [sync.pendingCount, sync.failedCount, sync.lastSyncedAt]);
 
   async function refreshLibrary() {
     setLoading(true);
@@ -68,8 +70,13 @@ export function LibraryPage() {
     }
 
     const inProgress = books.filter((entry) => (entry.progress?.logical_progress ?? 0) > 0).length;
-    return `${books.length} local books, ${inProgress} with saved reading progress.`;
-  }, [books]);
+    const syncSummary = sync.pendingCount
+      ? `${sync.pendingCount} pending sync`
+      : sync.failedCount
+        ? `${sync.failedCount} sync issue${sync.failedCount === 1 ? "" : "s"}`
+        : "All local progress is synced";
+    return `${books.length} local books, ${inProgress} with saved reading progress. ${syncSummary}.`;
+  }, [books, sync.failedCount, sync.pendingCount]);
 
   return (
     <div className="page-wrap">
@@ -79,12 +86,22 @@ export function LibraryPage() {
             A local-first reader for your <em>own shelves.</em>
           </h1>
           <p>
-            PDFs stay on this device. Progress saves here first, and this structure is ready for Drive sync in the
-            next phase.
+            PDFs stay on this device. Progress saves here first, and Google Drive sync stays quiet in the background
+            when you want it.
           </p>
         </div>
 
         <div className="action-row">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={() => void sync.syncAllPending()}
+            disabled={sync.pendingCount === 0 || sync.isSyncingAll}
+          >
+            <MaterialIcon>sync</MaterialIcon>
+            <span>{sync.isSyncingAll ? "Syncing..." : "Sync All Pending"}</span>
+          </button>
+
           <button
             type="button"
             className="secondary-button"
@@ -151,7 +168,11 @@ export function LibraryPage() {
                 <div className="book-meta">
                   <h2>{book.title}</h2>
                   <p>{progress ? `Page ${progress.page}` : "Unread volume"}</p>
-                  {progress?.pending_sync ? <div className="book-sync-indicator">Pending sync</div> : null}
+                  {progress ? (
+                    <div className={`book-sync-indicator book-sync-indicator-${sync.getBookSyncState(book.book_id, progress)}`}>
+                      {sync.getBookSyncMessage(book.book_id, progress)}
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="progress-row">

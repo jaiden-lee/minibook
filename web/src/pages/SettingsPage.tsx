@@ -1,5 +1,6 @@
 import { useAppearance, type AppearanceTheme } from "@/shell/AppearanceContext";
 import { useAuth } from "@/shell/AuthContext";
+import { useSync } from "@/shell/SyncContext";
 
 const THEMES: Array<{ value: AppearanceTheme; label: string; note: string }> = [
   { value: "light", label: "Light", note: "Bright paper and the original library look." },
@@ -10,6 +11,7 @@ const THEMES: Array<{ value: AppearanceTheme; label: string; note: string }> = [
 export function SettingsPage() {
   const { theme, setTheme } = useAppearance();
   const auth = useAuth();
+  const sync = useSync();
 
   return (
     <div className="page-wrap">
@@ -53,7 +55,7 @@ export function SettingsPage() {
             </strong>
             <span>
               {auth.isAuthenticated
-                ? "You can now sync the currently open book from the reader."
+                ? "Your progress sync now runs through the local server and Drive."
                 : auth.isConfigured
                   ? "Drive sync is optional. Local reading works without signing in."
                   : "Add GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in server/.env.local and restart the server."}
@@ -83,6 +85,40 @@ export function SettingsPage() {
         </div>
 
         {auth.error ? <div className="settings-inline-note">{auth.error}</div> : null}
+      </section>
+
+      <section className="settings-card settings-card-spaced">
+        <div className="settings-section-title">Sync Diagnostics</div>
+        <div className="settings-diagnostics-grid">
+          <div className="settings-diagnostic">
+            <strong>{sync.pendingCount}</strong>
+            <span>Pending books</span>
+          </div>
+          <div className="settings-diagnostic">
+            <strong>{sync.failedCount}</strong>
+            <span>Books with sync issues</span>
+          </div>
+          <div className="settings-diagnostic">
+            <strong>{sync.lastSyncedAt ? new Date(sync.lastSyncedAt).toLocaleTimeString() : "--"}</strong>
+            <span>Last successful sync</span>
+          </div>
+        </div>
+
+        <div className="settings-auth-row">
+          <div className="settings-theme-copy">
+            <strong>Sync queue</strong>
+            <span>Retry all pending progress uploads across your local library.</span>
+          </div>
+
+          <button
+            type="button"
+            className="primary-button"
+            onClick={() => void sync.syncAllPending()}
+            disabled={sync.pendingCount === 0 || sync.isSyncingAll}
+          >
+            {sync.isSyncingAll ? "Syncing..." : "Sync All Pending"}
+          </button>
+        </div>
       </section>
     </div>
   );

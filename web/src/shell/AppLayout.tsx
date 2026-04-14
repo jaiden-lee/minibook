@@ -1,6 +1,8 @@
 import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { useEffect } from "react";
 import { AppearanceProvider, useAppearance } from "@/shell/AppearanceContext";
 import { AuthProvider, useAuth } from "@/shell/AuthContext";
+import { SyncProvider, useSync } from "@/shell/SyncContext";
 
 const navItems = [
   { label: "Library", icon: "auto_stories", to: "/" },
@@ -13,7 +15,9 @@ export function AppLayout() {
   return (
     <AppearanceProvider>
       <AuthProvider>
-        <AppLayoutInner />
+        <SyncProvider>
+          <AppLayoutInner />
+        </SyncProvider>
       </AuthProvider>
     </AppearanceProvider>
   );
@@ -24,6 +28,13 @@ function AppLayoutInner() {
   const isReader = location.pathname.startsWith("/read/");
   const { theme } = useAppearance();
   const auth = useAuth();
+  const sync = useSync();
+
+  useEffect(() => {
+    if (!isReader) {
+      window.scrollTo({ top: 0, behavior: "auto" });
+    }
+  }, [isReader, location.pathname]);
 
   if (isReader) {
     return <div className={`app-theme app-theme-${theme}`}><Outlet /></div>;
@@ -98,7 +109,11 @@ function AppLayoutInner() {
           </label>
 
           <div className="status-pill">
-            {auth.isAuthenticated ? "Drive connected" : "Offline-first library"}
+            {sync.pendingCount
+              ? `${sync.pendingCount} pending sync`
+              : auth.isAuthenticated
+                ? "Drive connected"
+                : "Offline-first library"}
           </div>
         </header>
 

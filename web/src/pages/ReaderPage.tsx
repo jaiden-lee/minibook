@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import { Link, useParams } from "react-router-dom";
 import type { ProgressRecord } from "@minibook/shared-types";
 import { resolveProgressRecord } from "@minibook/sync-core";
 import { openLocalBook, replaceLocalProgress, saveBookProgress } from "@/lib/library";
 import { getPdfPageAspectRatio, loadPdfDocument, renderPdfPage, type PdfDocumentHandle } from "@/lib/pdf";
 import { useAppearance, type AppearanceTheme } from "@/shell/AppearanceContext";
 import { useAuth } from "@/shell/AuthContext";
-import { readRemoteBookProgress, syncBookProgressToDrive, syncBookProgressToDriveKeepalive } from "@/lib/driveSync";
+import { useSync } from "@/shell/SyncContext";
+import { readRemoteBookProgress, syncBookProgressToDriveKeepalive } from "@/lib/driveSync";
 import { getOrCreateDeviceId } from "@/lib/id";
 
 type ReaderMode = "flip" | "scroll";
@@ -45,11 +46,25 @@ const VIRTUAL_WINDOW = 2;
 
 export function ReaderPage() {
   const { bookId } = useParams();
-  const navigate = useNavigate();
   const pageRefs = useRef(new Map<number, HTMLDivElement>());
   const initialScrollDoneRef = useRef(false);
   const pendingRestoreRef = useRef<PendingRestore | null>(null);
   const trackedScrollProgressRef = useRef<{ page: number; position: number }>({ page: 1, position: 0 });
+  const latestUnmountSnapshotRef = useRef<{
+    bookId: string | null;
+    state: ReaderState | null;
+    readerMode: ReaderMode;
+    zoom: number;
+    viewportWidth: number;
+    isAuthenticated: boolean;
+  }>({
+    bookId: null,
+    state: null,
+    readerMode: "flip",
+    zoom: 1,
+    viewportWidth: typeof window !== "undefined" ? window.innerWidth : 1280,
+    isAuthenticated: false,
+  });
   const previousLayoutRef = useRef<{ pageRenderWidth: number; documentHandle: PdfDocumentHandle | null }>({
     pageRenderWidth: 0,
     documentHandle: null,
@@ -72,11 +87,24 @@ export function ReaderPage() {
     typeof window !== "undefined" ? window.innerWidth : 1280,
   );
   const [scrollAnchorVersion, setScrollAnchorVersion] = useState(0);
+  const [pageMountVersion, setPageMountVersion] = useState(0);
   const [restoreDebugSnapshot, setRestoreDebugSnapshot] = useState<RestoreDebugSnapshot | null>(null);
   const [, forceDebugTick] = useState(0);
   const auth = useAuth();
+  const sync = useSync();
 
   const pageRenderWidth = getPageRenderWidth(viewportWidth, zoom);
+
+  useEffect(() => {
+    latestUnmountSnapshotRef.current = {
+      bookId: bookId ?? null,
+      state,
+      readerMode,
+      zoom,
+      viewportWidth,
+      isAuthenticated: auth.isAuthenticated,
+    };
+  }, [auth.isAuthenticated, bookId, readerMode, state, viewportWidth, zoom]);
 
   useEffect(() => {
     localStorage.setItem(READER_MODE_KEY, readerMode);
@@ -111,12 +139,13 @@ export function ReaderPage() {
 
   useEffect(() => {
     if (!bookId) {
-      navigate("/");
+      window.location.assign("/");
       return;
     }
 
     const currentBookId = bookId;
     let disposed = false;
+    forceWindowScroll(0);
     initialScrollDoneRef.current = false;
     pendingRestoreRef.current = null;
 
@@ -219,7 +248,7 @@ export function ReaderPage() {
     return () => {
       disposed = true;
     };
-  }, [auth.isAuthenticated, bookId, navigate]);
+  }, [auth.isAuthenticated, bookId]);
 
   useEffect(() => {
     if (!state) {
@@ -369,7 +398,7 @@ export function ReaderPage() {
         cancelAnimationFrame(thirdFrame);
       }
     };
-  }, [readerMode, state?.currentPage, state?.documentHandle, pageRenderWidth]);
+  }, [readerMode, state?.currentPage, state?.documentHandle, pageRenderWidth, pageMountVersion]);
 
   useEffect(() => {
     if (!state || readerMode !== "scroll" || !initialScrollDoneRef.current) {
@@ -409,7 +438,7 @@ export function ReaderPage() {
       return;
     }
 
-    const currentPage = state.currentPage;
+    const currentPage = readerMode === "scroll" ? trackedScrollProgressRef.current.page : state.currentPage;
     const totalPages = state.totalPages;
     const previous = state.progress;
     const positionInPage = readerMode === "scroll" ? trackedScrollProgressRef.current.position : 0;
@@ -425,6 +454,7 @@ export function ReaderPage() {
       }
 
       void saveBookProgress(bookId, currentPage, totalPages, positionInPage, previous).then((progress) => {
+        sync.markBookPending(bookId);
         setState((current) => (current ? { ...current, progress } : current));
       });
     }, 250);
@@ -437,21 +467,23 @@ export function ReaderPage() {
       return;
     }
 
-    const currentPage = state.currentPage;
-    const totalPages = state.totalPages;
-    const previous = state.progress;
-    const positionInPage = readerMode === "scroll" ? trackedScrollProgressRef.current.position : 0;
-
     const saveOnHide = () => {
       if (document.visibilityState === "visible") {
         return;
       }
 
+      const liveProgress = getLiveReaderProgress(
+        pageRefs.current,
+        readerMode,
+        state.currentPage,
+        trackedScrollProgressRef.current,
+      );
+
       const nextProgress = buildCurrentProgressSnapshot(
         bookId,
-        state.currentPage,
+        liveProgress.page,
         state.totalPages,
-        readerMode === "scroll" ? trackedScrollProgressRef.current.position : 0,
+        liveProgress.position,
         state.progress,
       );
 
@@ -464,6 +496,7 @@ export function ReaderPage() {
         });
       }
 
+      sync.markBookPending(bookId);
       void replaceLocalProgress(nextProgress, true);
       if (auth.isAuthenticated) {
         syncBookProgressToDriveKeepalive(bookId, nextProgress);
@@ -471,11 +504,18 @@ export function ReaderPage() {
     };
 
     const syncOnPageHide = () => {
+      const liveProgress = getLiveReaderProgress(
+        pageRefs.current,
+        readerMode,
+        state.currentPage,
+        trackedScrollProgressRef.current,
+      );
+
       const nextProgress = buildCurrentProgressSnapshot(
         bookId,
-        state.currentPage,
+        liveProgress.page,
         state.totalPages,
-        readerMode === "scroll" ? trackedScrollProgressRef.current.position : 0,
+        liveProgress.position,
         state.progress,
       );
 
@@ -488,6 +528,7 @@ export function ReaderPage() {
         });
       }
 
+      sync.markBookPending(bookId);
       void replaceLocalProgress(nextProgress, true);
       if (auth.isAuthenticated) {
         syncBookProgressToDriveKeepalive(bookId, nextProgress);
@@ -516,6 +557,45 @@ export function ReaderPage() {
 
     return () => window.clearTimeout(timeout);
   }, [auth.isAuthenticated, bookId, state?.progress?.pending_sync, state?.progress?.updated_at]);
+
+  useEffect(() => {
+    return () => {
+      const snapshot = latestUnmountSnapshotRef.current;
+      if (!snapshot.bookId || !snapshot.state) {
+        return;
+      }
+
+      const liveProgress = getLiveReaderProgress(
+        pageRefs.current,
+        snapshot.readerMode,
+        snapshot.state.currentPage,
+        trackedScrollProgressRef.current,
+      );
+
+      const nextProgress = buildCurrentProgressSnapshot(
+        snapshot.bookId,
+        liveProgress.page,
+        snapshot.state.totalPages,
+        liveProgress.position,
+        snapshot.state.progress,
+      );
+
+      if (snapshot.readerMode === "scroll" && initialScrollDoneRef.current) {
+        writeLocalScrollResume(snapshot.bookId, {
+          mode: snapshot.readerMode,
+          zoom: snapshot.zoom,
+          viewportWidth: snapshot.viewportWidth,
+          scrollY: window.scrollY,
+        });
+      }
+
+      sync.markBookPending(snapshot.bookId);
+      void replaceLocalProgress(nextProgress, true);
+      if (snapshot.isAuthenticated) {
+        syncBookProgressToDriveKeepalive(snapshot.bookId, nextProgress);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!bookId || !state?.progress?.pending_sync || !auth.isAuthenticated) {
@@ -599,6 +679,40 @@ export function ReaderPage() {
     goToPage(nextPage);
   }
 
+  function handleLeaveReader() {
+    if (bookId && state) {
+      const liveProgress = getLiveReaderProgress(
+        pageRefs.current,
+        readerMode,
+        state.currentPage,
+        trackedScrollProgressRef.current,
+      );
+
+      const nextProgress = buildCurrentProgressSnapshot(
+        bookId,
+        liveProgress.page,
+        state.totalPages,
+        liveProgress.position,
+        state.progress,
+      );
+
+      if (readerMode === "scroll" && initialScrollDoneRef.current) {
+        writeLocalScrollResume(bookId, {
+          mode: readerMode,
+          zoom,
+          viewportWidth,
+          scrollY: window.scrollY,
+        });
+      }
+
+      sync.markBookPending(bookId);
+      void replaceLocalProgress(nextProgress, true);
+      if (auth.isAuthenticated) {
+        syncBookProgressToDriveKeepalive(bookId, nextProgress);
+      }
+    }
+  }
+
   async function handleDriveSync() {
     if (!bookId || !state) {
       return;
@@ -608,24 +722,31 @@ export function ReaderPage() {
     setDriveMessage("Syncing progress to Drive...");
 
     try {
+      const liveProgress = getLiveReaderProgress(
+        pageRefs.current,
+        readerMode,
+        state.currentPage,
+        trackedScrollProgressRef.current,
+      );
+
       const currentProgress = await saveBookProgress(
         bookId,
-        state.currentPage,
+        liveProgress.page,
         state.totalPages,
-        readerMode === "scroll" ? trackedScrollProgressRef.current.position : 0,
+        liveProgress.position,
         state.progress,
       );
 
       setState((current) => (current ? { ...current, progress: currentProgress } : current));
-      const result = await syncBookProgressToDrive(bookId, currentProgress);
+      const result = await sync.syncBook(bookId, currentProgress);
       const remoteFiles = await readRemoteBookProgress(bookId);
-      const syncedProgress = await replaceLocalProgress(result.progress, false);
-      setState((current) => (current ? { ...current, progress: syncedProgress } : current));
+      setState((current) => (current ? { ...current, progress: result.progress } : current));
       setDriveMessage(`Synced page ${result.progress.page}. Drive now has ${remoteFiles.files.length} device file${remoteFiles.files.length === 1 ? "" : "s"} for this book.`);
       setSyncStatus("Progress is synced.");
     } catch (caught) {
       const message = caught instanceof Error ? caught.message : "Drive sync failed.";
       setDriveMessage(message);
+      sync.markBookError(bookId, message);
       setSyncStatus(getSyncFailureMessage(caught));
     } finally {
       setDriveBusy(false);
@@ -639,11 +760,11 @@ export function ReaderPage() {
 
     try {
       setSyncStatus(nextMessage);
-      const result = await syncBookProgressToDrive(bookId, state.progress);
-      const syncedProgress = await replaceLocalProgress(result.progress, false);
-      setState((current) => (current ? { ...current, progress: syncedProgress } : current));
+      const result = await sync.syncBook(bookId, state.progress);
+      setState((current) => (current ? { ...current, progress: result.progress } : current));
       setSyncStatus("Progress is synced.");
     } catch (caught) {
+      sync.markBookError(bookId, caught instanceof Error ? caught.message : "Drive sync failed.");
       setSyncStatus(getSyncFailureMessage(caught));
     }
   }
@@ -669,9 +790,9 @@ export function ReaderPage() {
       <div className="reader-shell">
         <header className="reader-topbar">
           <div className="reader-topbar-left">
-            <Link className="icon-button reader-nav-button" to="/">
+            <a className="icon-button reader-nav-button" href="/" onClick={handleLeaveReader}>
               <MaterialIcon>arrow_back</MaterialIcon>
-            </Link>
+            </a>
             <div className="reader-title">
               <h1>Opening book</h1>
               <span>{loadingMessage}</span>
@@ -700,9 +821,9 @@ export function ReaderPage() {
     <div className={shellClass}>
       <header className="reader-topbar">
         <div className="reader-topbar-left">
-          <Link className="icon-button reader-nav-button" to="/">
+          <a className="icon-button reader-nav-button" href="/" onClick={handleLeaveReader}>
             <MaterialIcon>arrow_back</MaterialIcon>
-          </Link>
+          </a>
 
           <div className="reader-title">
             <h1>{state.title}</h1>
@@ -814,7 +935,7 @@ export function ReaderPage() {
                 pageWidth={pageRenderWidth}
                 theme={theme}
                 aspectRatio={pageAspectRatios[state.currentPage]}
-                onMount={(element) => bindPageRef(pageRefs.current, state.currentPage, element)}
+                onMount={(element) => bindPageRef(pageRefs.current, state.currentPage, element, setPageMountVersion)}
               />
             </div>
           ) : (
@@ -829,7 +950,7 @@ export function ReaderPage() {
                   aspectRatio={pageAspectRatios[pageNumber]}
                   active={pageNumber === state.currentPage}
                   shouldRender={renderedPages.has(pageNumber)}
-                  onMount={(element) => bindPageRef(pageRefs.current, pageNumber, element)}
+                  onMount={(element) => bindPageRef(pageRefs.current, pageNumber, element, setPageMountVersion)}
                 />
               ))}
             </div>
@@ -1002,9 +1123,15 @@ function range(count: number) {
   return Array.from({ length: count }, (_, index) => index + 1);
 }
 
-function bindPageRef(map: Map<number, HTMLDivElement>, pageNumber: number, element: HTMLDivElement | null) {
+function bindPageRef(
+  map: Map<number, HTMLDivElement>,
+  pageNumber: number,
+  element: HTMLDivElement | null,
+  notifyMounted: Dispatch<SetStateAction<number>>,
+) {
   if (element) {
     map.set(pageNumber, element);
+    notifyMounted((value) => value + 1);
     return;
   }
 
@@ -1124,6 +1251,33 @@ function ReaderDebugPanel({
 
 function formatDebugNumber(value: number | undefined) {
   return typeof value === "number" ? value.toFixed(4) : "-";
+}
+
+function getLiveReaderProgress(
+  pageRefs: Map<number, HTMLDivElement>,
+  readerMode: ReaderMode,
+  fallbackPage: number,
+  tracked: { page: number; position: number },
+) {
+  if (readerMode !== "scroll") {
+    return {
+      page: fallbackPage,
+      position: 0,
+    };
+  }
+
+  const anchorY = getReaderAnchorY();
+  for (const [pageNumber, element] of pageRefs.entries()) {
+    const rect = getPageMeasurementRect(element);
+    if (rect.bottom >= anchorY) {
+      return {
+        page: pageNumber,
+        position: clamp((anchorY - rect.top) / rect.height, 0, 1),
+      };
+    }
+  }
+
+  return tracked;
 }
 
 function buildCurrentProgressSnapshot(

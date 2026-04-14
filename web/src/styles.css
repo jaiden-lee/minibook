@@ -440,6 +440,23 @@ a {
   text-transform: uppercase;
 }
 
+.book-sync-indicator-synced {
+  color: var(--tertiary);
+}
+
+.book-sync-indicator-pending {
+  color: var(--primary);
+}
+
+.book-sync-indicator-offline,
+.book-sync-indicator-signed-out {
+  color: var(--on-surface-variant);
+}
+
+.book-sync-indicator-error {
+  color: #bb5d48;
+}
+
 .progress-row {
   display: flex;
   align-items: center;
@@ -804,6 +821,34 @@ a {
   font-size: 0.92rem;
 }
 
+.settings-diagnostics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.settings-diagnostic {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem;
+  border-radius: 1rem;
+  background: var(--surface-container-lowest);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--outline) 18%, transparent);
+}
+
+.settings-diagnostic strong {
+  font-family: "Manrope", sans-serif;
+  font-size: 1.25rem;
+  letter-spacing: -0.03em;
+}
+
+.settings-diagnostic span {
+  color: var(--on-surface-variant);
+  font-size: 0.9rem;
+}
+
 .reader-main {
   flex: 1;
   overflow-x: auto;
@@ -998,6 +1043,10 @@ a {
   .settings-auth-row {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .settings-diagnostics-grid {
+    grid-template-columns: 1fr;
   }
 }
 
