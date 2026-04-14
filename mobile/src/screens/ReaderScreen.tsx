@@ -60,11 +60,11 @@ export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScr
   }, []);
 
   useEffect(() => {
-    const nextTheme = resolveThemeFromPdfAppearance(theme, pdfAppearance);
-    if (nextTheme !== theme) {
-      onThemeChange(nextTheme);
+    const desiredAppearance = preferredAppearanceForTheme(theme, pdfAppearance);
+    if (desiredAppearance !== pdfAppearance) {
+      setPdfAppearance(desiredAppearance);
     }
-  }, [theme, pdfAppearance, onThemeChange]);
+  }, [theme]);
 
   useEffect(() => {
     void setSetting(READER_PDF_APPEARANCE_KEY, pdfAppearance);
@@ -118,12 +118,14 @@ export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScr
       getSetting(READER_MARGIN_MODE_KEY),
     ]);
 
-    if (savedAppearance === "light" || savedAppearance === "sepia" || savedAppearance === "dark" || savedAppearance === "darkContrast") {
+    if (
+      (savedAppearance === "light" && theme === "light")
+      || (savedAppearance === "sepia" && theme === "sepia")
+      || ((savedAppearance === "dark" || savedAppearance === "darkContrast") && theme === "slate")
+    ) {
       setPdfAppearance(savedAppearance);
-    } else if (theme === "slate") {
-      setPdfAppearance("dark");
-    } else if (theme === "sepia") {
-      setPdfAppearance("sepia");
+    } else {
+      setPdfAppearance(pdfAppearanceFallback(theme));
     }
 
     if (savedMarginMode === "original" || savedMarginMode === "reduced") {
@@ -161,16 +163,23 @@ export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScr
 
   function cyclePdfAppearance() {
     setPdfAppearance((current) => {
-      switch (current) {
-        case "light":
-          return "sepia";
-        case "sepia":
-          return "dark";
-        case "dark":
-          return "darkContrast";
-        default:
-          return "light";
+      const next = (() => {
+        switch (current) {
+          case "light":
+            return "sepia";
+          case "sepia":
+            return "dark";
+          case "dark":
+            return "darkContrast";
+          default:
+            return "light";
+        }
+      })();
+      const nextTheme = resolveThemeFromPdfAppearance(theme, next);
+      if (nextTheme !== theme) {
+        onThemeChange(nextTheme);
       }
+      return next;
     });
   }
 
@@ -352,6 +361,14 @@ function pdfAppearanceFallback(theme: AppearanceTheme): PdfAppearance {
     default:
       return "light";
   }
+}
+
+function preferredAppearanceForTheme(theme: AppearanceTheme, currentAppearance: PdfAppearance): PdfAppearance {
+  if (theme === "slate" && (currentAppearance === "dark" || currentAppearance === "darkContrast")) {
+    return currentAppearance;
+  }
+
+  return pdfAppearanceFallback(theme);
 }
 
 function pdfAppearanceLabel(mode: PdfAppearance) {

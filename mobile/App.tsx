@@ -8,7 +8,7 @@ import type { BookRecord, ProgressRecord } from "@minibook/shared-types";
 import { LibraryScreen } from "./src/screens/LibraryScreen";
 import { ReaderScreen } from "./src/screens/ReaderScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
-import { ensureDatabase, listLibraryBooks } from "./src/lib/database";
+import { ensureDatabase, getSetting, listLibraryBooks, setSetting } from "./src/lib/database";
 import { AppearanceTheme, mobileThemes } from "./src/theme";
 
 type AppTab = "library" | "settings";
@@ -17,6 +17,8 @@ export type MobileLibraryBook = {
   book: BookRecord;
   progress?: ProgressRecord;
 };
+
+const APP_THEME_KEY = "app_theme";
 
 export default function App() {
   const [theme, setTheme] = useState<AppearanceTheme>("light");
@@ -42,10 +44,18 @@ export default function App() {
     void bootstrap();
   }, []);
 
+  useEffect(() => {
+    void setSetting(APP_THEME_KEY, theme);
+  }, [theme]);
+
   async function bootstrap() {
     try {
       setError(null);
       await ensureDatabase();
+      const savedTheme = await getSetting(APP_THEME_KEY);
+      if (savedTheme === "light" || savedTheme === "sepia" || savedTheme === "slate") {
+        setTheme(savedTheme);
+      }
       await refreshLibrary();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to prepare the mobile library.");
