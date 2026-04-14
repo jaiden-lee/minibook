@@ -107,7 +107,6 @@ export default function App() {
       <ReaderScreen
         bookId={selectedBookId}
         theme={theme}
-        onThemeChange={setTheme}
         onBack={() => {
           setSelectedBookId(null);
           void refreshLibrary();

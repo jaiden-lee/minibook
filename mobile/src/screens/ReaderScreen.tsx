@@ -9,7 +9,6 @@ import { getSetting, setSetting } from "../lib/database";
 type ReaderScreenProps = {
   bookId: string;
   theme: AppearanceTheme;
-  onThemeChange: (theme: AppearanceTheme) => void;
   onBack: () => void;
 };
 
@@ -28,7 +27,7 @@ type MarginMode = "original" | "reduced";
 const READER_PDF_APPEARANCE_KEY = "reader_pdf_appearance";
 const READER_MARGIN_MODE_KEY = "reader_margin_mode";
 
-export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScreenProps) {
+export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
   const [pdfAppearance, setPdfAppearance] = useState<PdfAppearance>(pdfAppearanceFallback(theme));
   const effectiveTheme = resolveThemeFromPdfAppearance(theme, pdfAppearance);
   const palette = mobileThemes[effectiveTheme];
@@ -175,10 +174,6 @@ export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScr
             return "light";
         }
       })();
-      const nextTheme = resolveThemeFromPdfAppearance(theme, next);
-      if (nextTheme !== theme) {
-        onThemeChange(nextTheme);
-      }
       return next;
     });
   }
