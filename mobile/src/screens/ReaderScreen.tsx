@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ProgressRecord } from "@minibook/shared-types";
 import { NativePdfView } from "../components/NativePdfView";
@@ -22,6 +22,7 @@ type ReaderState = {
 
 export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
   const palette = mobileThemes[theme];
+  const jumpSequenceRef = useRef(0);
   const [state, setState] = useState<ReaderState | null>(null);
   const [pageJumpValue, setPageJumpValue] = useState("1");
   const [loading, setLoading] = useState(true);
@@ -73,39 +74,31 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
   }
 
   function moveRelative(delta: -1 | 1) {
-    setState((current) => {
-      if (!current) {
-        return current;
-      }
+    if (!state) {
+      return;
+    }
 
-      const nextPage = Math.max(1, current.currentPage + delta);
-      setPageJumpValue(String(nextPage));
-      setPendingPageJump({ page: nextPage, id: Date.now() });
-      return {
-        ...current,
-        currentPage: nextPage,
-        totalPages: Math.max(current.totalPages, nextPage),
-      };
-    });
+    const nextPage = Math.max(1, Math.min(state.totalPages || Number.MAX_SAFE_INTEGER, state.currentPage + delta));
+    jumpSequenceRef.current += 1;
+    setPageJumpValue(String(nextPage));
+    setPendingPageJump({ page: nextPage, id: jumpSequenceRef.current });
   }
 
   function submitPageJump() {
+    if (!state) {
+      return;
+    }
+
     const parsed = Number(pageJumpValue);
     if (!Number.isFinite(parsed) || parsed < 1) {
       setPageJumpValue(state ? String(state.currentPage) : "1");
       return;
     }
 
-    setState((current) => (
-      current
-        ? {
-            ...current,
-            currentPage: parsed,
-            totalPages: Math.max(current.totalPages, parsed),
-          }
-        : current
-    ));
-    setPendingPageJump({ page: parsed, id: Date.now() });
+    const nextPage = Math.min(parsed, state.totalPages || parsed);
+    jumpSequenceRef.current += 1;
+    setPageJumpValue(String(nextPage));
+    setPendingPageJump({ page: nextPage, id: jumpSequenceRef.current });
   }
 
   if (loading) {
@@ -234,7 +227,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
 }
 
 function resolveChromeBackground(
-  theme: AppearanceTheme,
+  _theme: AppearanceTheme,
   chromeHidden: boolean,
   hiddenColor: string,
   visibleColor: string,
@@ -243,7 +236,7 @@ function resolveChromeBackground(
     return hiddenColor;
   }
 
-  return theme === "slate" ? visibleColor : hiddenColor;
+  return visibleColor;
 }
 
 const styles = StyleSheet.create({
