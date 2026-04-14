@@ -8,6 +8,8 @@ import { mobileThemes } from "../theme";
 type NativePdfViewProps = {
   fileUri: string;
   theme: AppearanceTheme;
+  pdfAppearance: "light" | "sepia" | "dark" | "darkContrast";
+  marginMode: "original" | "reduced";
   initialPage: number;
   jumpRequest: { page: number; id: number } | null;
   onLoaded: (numberOfPages: number) => void;
@@ -29,6 +31,8 @@ const ANDROID_VIEWER_URI = "file:///android_asset/minibook-pdf/viewer.html";
 export function NativePdfView({
   fileUri,
   theme,
+  pdfAppearance,
+  marginMode,
   initialPage,
   jumpRequest,
   onLoaded,
@@ -74,15 +78,31 @@ export function NativePdfView({
       fileUri,
       initialPage,
       theme,
+      pdfAppearance,
+      marginMode,
     });
-  }, [fileUri, initialPage, theme, postCommand]);
+  }, [fileUri, initialPage, theme, pdfAppearance, marginMode, postCommand]);
 
   useEffect(() => {
     postCommand({
-      type: "set-theme",
+      type: "set-shell-theme",
       theme,
     });
   }, [theme, postCommand]);
+
+  useEffect(() => {
+    postCommand({
+      type: "set-pdf-appearance",
+      pdfAppearance,
+    });
+  }, [pdfAppearance, postCommand]);
+
+  useEffect(() => {
+    postCommand({
+      type: "set-margin-mode",
+      marginMode,
+    });
+  }, [marginMode, postCommand]);
 
   useEffect(() => {
     if (!jumpRequest) {

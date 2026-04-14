@@ -4,6 +4,7 @@ import type { ProgressRecord } from "@minibook/shared-types";
 import { NativePdfView } from "../components/NativePdfView";
 import { openLocalBook, saveBookProgress } from "../lib/library";
 import { mobileThemes, type AppearanceTheme } from "../theme";
+import { getSetting, setSetting } from "../lib/database";
 
 type ReaderScreenProps = {
   bookId: string;
@@ -20,6 +21,12 @@ type ReaderState = {
   progress: ProgressRecord | null;
 };
 
+type PdfAppearance = "light" | "sepia" | "dark" | "darkContrast";
+type MarginMode = "original" | "reduced";
+
+const READER_PDF_APPEARANCE_KEY = "reader_pdf_appearance";
+const READER_MARGIN_MODE_KEY = "reader_margin_mode";
+
 export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
   const palette = mobileThemes[theme];
   const jumpSequenceRef = useRef(0);
@@ -30,6 +37,8 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
   const [viewerMessage, setViewerMessage] = useState<string | null>(null);
   const [chromeHidden, setChromeHidden] = useState(false);
   const [pendingPageJump, setPendingPageJump] = useState<{ page: number; id: number } | null>(null);
+  const [pdfAppearance, setPdfAppearance] = useState<PdfAppearance>("light");
+  const [marginMode, setMarginMode] = useState<MarginMode>("original");
 
   useEffect(() => {
     void loadBook();
@@ -43,6 +52,18 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
 
     return () => subscription.remove();
   }, [onBack]);
+
+  useEffect(() => {
+    void loadReaderPreferences();
+  }, []);
+
+  useEffect(() => {
+    void setSetting(READER_PDF_APPEARANCE_KEY, pdfAppearance);
+  }, [pdfAppearance]);
+
+  useEffect(() => {
+    void setSetting(READER_MARGIN_MODE_KEY, marginMode);
+  }, [marginMode]);
 
   useEffect(() => {
     if (!state) {
@@ -82,6 +103,25 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
     }
   }
 
+  async function loadReaderPreferences() {
+    const [savedAppearance, savedMarginMode] = await Promise.all([
+      getSetting(READER_PDF_APPEARANCE_KEY),
+      getSetting(READER_MARGIN_MODE_KEY),
+    ]);
+
+    if (savedAppearance === "light" || savedAppearance === "sepia" || savedAppearance === "dark" || savedAppearance === "darkContrast") {
+      setPdfAppearance(savedAppearance);
+    } else if (theme === "slate") {
+      setPdfAppearance("dark");
+    } else if (theme === "sepia") {
+      setPdfAppearance("sepia");
+    }
+
+    if (savedMarginMode === "original" || savedMarginMode === "reduced") {
+      setMarginMode(savedMarginMode);
+    }
+  }
+
   function moveRelative(delta: -1 | 1) {
     if (!state) {
       return;
@@ -108,6 +148,25 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
     jumpSequenceRef.current += 1;
     setPageJumpValue(String(nextPage));
     setPendingPageJump({ page: nextPage, id: jumpSequenceRef.current });
+  }
+
+  function cyclePdfAppearance() {
+    setPdfAppearance((current) => {
+      switch (current) {
+        case "light":
+          return "sepia";
+        case "sepia":
+          return "dark";
+        case "dark":
+          return "darkContrast";
+        default:
+          return "light";
+      }
+    });
+  }
+
+  function toggleMarginMode() {
+    setMarginMode((current) => (current === "original" ? "reduced" : "original"));
   }
 
   if (loading) {
@@ -157,12 +216,25 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
           <Text style={[styles.readerTitle, { color: palette.onSurface }]} numberOfLines={1}>{state.title}</Text>
           <Text style={[styles.readerMode, { color: palette.onSurfaceVariant }]}>Vertical local reading mode</Text>
         </View>
+
+        <View style={styles.topBarActions}>
+          <Pressable onPress={cyclePdfAppearance} style={[styles.chromeButton, { backgroundColor: palette.surfaceLow }]}>
+            <Text style={[styles.chromeButtonLabel, { color: palette.onSurface }]}>{pdfAppearanceLabel(pdfAppearance)}</Text>
+          </Pressable>
+          <Pressable onPress={toggleMarginMode} style={[styles.chromeButton, { backgroundColor: palette.surfaceLow }]}>
+            <Text style={[styles.chromeButtonLabel, { color: palette.onSurface }]}>
+              {marginMode === "reduced" ? "Tight" : "Margins"}
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={[styles.readerCanvasWrap, { backgroundColor: palette.surfaceLow }]}>
         <NativePdfView
           fileUri={state.fileUri}
           theme={theme}
+          pdfAppearance={pdfAppearance}
+          marginMode={marginMode}
           initialPage={state.initialPage}
           jumpRequest={pendingPageJump}
           onLoaded={(numberOfPages) => {
@@ -248,6 +320,19 @@ function resolveChromeBackground(
   return visibleColor;
 }
 
+function pdfAppearanceLabel(mode: PdfAppearance) {
+  switch (mode) {
+    case "sepia":
+      return "Sepia";
+    case "dark":
+      return "Dark";
+    case "darkContrast":
+      return "Contrast";
+    default:
+      return "Light";
+  }
+}
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
@@ -301,6 +386,10 @@ const styles = StyleSheet.create({
   },
   titleWrap: {
     flex: 1,
+  },
+  topBarActions: {
+    flexDirection: "row",
+    gap: 8,
   },
   readerTitle: {
     fontFamily: "Newsreader_400Regular_Italic",
