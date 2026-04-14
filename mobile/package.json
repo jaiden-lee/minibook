@@ -1,0 +1,35 @@
+{
+  "name": "mobile",
+  "private": true,
+  "version": "0.1.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start --dev-client",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
+  },
+  "dependencies": {
+    "@expo-google-fonts/inter": "^0.4.1",
+    "@expo-google-fonts/manrope": "^0.4.1",
+    "@expo-google-fonts/newsreader": "^0.4.1",
+    "@minibook/shared-types": "0.1.0",
+    "@minibook/sync-core": "0.1.0",
+    "expo": "^53.0.0",
+    "expo-crypto": "^14.0.0",
+    "expo-dev-client": "^5.0.0",
+    "expo-document-picker": "^13.0.0",
+    "expo-file-system": "^18.0.0",
+    "expo-font": "^13.0.0",
+    "expo-sqlite": "^15.0.0",
+    "expo-status-bar": "^2.0.0",
+    "js-sha256": "^0.11.1",
+    "react": "^19.1.0",
+    "react-native": "^0.79.0",
+    "react-native-safe-area-context": "^5.0.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@types/react": "^19.1.2",
+    "typescript": "^5.8.3"
+  }
+}

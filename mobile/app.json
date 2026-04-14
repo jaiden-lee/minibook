@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "minibook",
+    "slug": "minibook",
+    "scheme": "minibook",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "plugins": [
+      "expo-document-picker",
+      "expo-sqlite",
+      "expo-dev-client"
+    ],
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "package": "com.jaide.minibook"
+    }
+  }
+}
