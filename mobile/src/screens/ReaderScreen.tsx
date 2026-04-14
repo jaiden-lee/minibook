@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, BackHandler, Pressable, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ProgressRecord } from "@minibook/shared-types";
 import { NativePdfView } from "../components/NativePdfView";
 import { openLocalBook, saveBookProgress } from "../lib/library";
@@ -34,6 +34,15 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
   useEffect(() => {
     void loadBook();
   }, [bookId]);
+
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
+      onBack();
+      return true;
+    });
+
+    return () => subscription.remove();
+  }, [onBack]);
 
   useEffect(() => {
     if (!state) {

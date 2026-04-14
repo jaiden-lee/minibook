@@ -131,6 +131,7 @@ export function NativePdfView({
         });
         return;
       case "error":
+        console.log("[minibook mobile viewer]", payload.message);
         onError(payload.message);
         return;
       default:
@@ -151,7 +152,7 @@ export function NativePdfView({
   }
 
   return (
-    <View style={[styles.wrap, { backgroundColor: palette.surfaceLowest, shadowColor: palette.shadow }]}>
+    <View style={[styles.wrap, { backgroundColor: palette.surfaceLowest }]}>
       <WebView
         ref={webViewRef}
         source={source}
@@ -184,12 +185,6 @@ export function NativePdfView({
 const styles = StyleSheet.create({
   wrap: {
     flex: 1,
-    borderRadius: 8,
-    overflow: "hidden",
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    elevation: 5,
   },
   webView: {
     flex: 1,
