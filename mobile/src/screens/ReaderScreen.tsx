@@ -9,6 +9,7 @@ import { getSetting, setSetting } from "../lib/database";
 type ReaderScreenProps = {
   bookId: string;
   theme: AppearanceTheme;
+  onThemeChange: (theme: AppearanceTheme) => void;
   onBack: () => void;
 };
 
@@ -27,8 +28,10 @@ type MarginMode = "original" | "reduced";
 const READER_PDF_APPEARANCE_KEY = "reader_pdf_appearance";
 const READER_MARGIN_MODE_KEY = "reader_margin_mode";
 
-export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
-  const palette = mobileThemes[theme];
+export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScreenProps) {
+  const [pdfAppearance, setPdfAppearance] = useState<PdfAppearance>(pdfAppearanceFallback(theme));
+  const effectiveTheme = resolveThemeFromPdfAppearance(theme, pdfAppearance);
+  const palette = mobileThemes[effectiveTheme];
   const jumpSequenceRef = useRef(0);
   const [state, setState] = useState<ReaderState | null>(null);
   const [pageJumpValue, setPageJumpValue] = useState("1");
@@ -37,7 +40,6 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
   const [viewerMessage, setViewerMessage] = useState<string | null>(null);
   const [chromeHidden, setChromeHidden] = useState(false);
   const [pendingPageJump, setPendingPageJump] = useState<{ page: number; id: number } | null>(null);
-  const [pdfAppearance, setPdfAppearance] = useState<PdfAppearance>("light");
   const [marginMode, setMarginMode] = useState<MarginMode>("original");
 
   useEffect(() => {
@@ -111,10 +113,13 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
 
     if (savedAppearance === "light" || savedAppearance === "sepia" || savedAppearance === "dark" || savedAppearance === "darkContrast") {
       setPdfAppearance(savedAppearance);
+      onThemeChange(resolveThemeFromPdfAppearance(theme, savedAppearance));
     } else if (theme === "slate") {
       setPdfAppearance("dark");
+      onThemeChange("slate");
     } else if (theme === "sepia") {
       setPdfAppearance("sepia");
+      onThemeChange("sepia");
     }
 
     if (savedMarginMode === "original" || savedMarginMode === "reduced") {
@@ -152,16 +157,20 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
 
   function cyclePdfAppearance() {
     setPdfAppearance((current) => {
-      switch (current) {
-        case "light":
-          return "sepia";
-        case "sepia":
-          return "dark";
-        case "dark":
-          return "darkContrast";
-        default:
-          return "light";
-      }
+      const next = (() => {
+        switch (current) {
+          case "light":
+            return "sepia";
+          case "sepia":
+            return "dark";
+          case "dark":
+            return "darkContrast";
+          default:
+            return "light";
+        }
+      })();
+      onThemeChange(resolveThemeFromPdfAppearance(theme, next));
+      return next;
     });
   }
 
@@ -172,7 +181,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
   if (loading) {
     return (
       <SafeAreaView style={[styles.root, { backgroundColor: palette.background }]}>
-        <StatusBar barStyle={theme === "slate" ? "light-content" : "dark-content"} backgroundColor={palette.background} />
+        <StatusBar barStyle={effectiveTheme === "slate" ? "light-content" : "dark-content"} backgroundColor={palette.background} />
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={palette.primary} />
           <Text style={[styles.loadingTitle, { color: palette.onSurface }]}>Opening book</Text>
@@ -185,7 +194,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
   if (error || !state) {
     return (
       <SafeAreaView style={[styles.root, { backgroundColor: palette.background }]}>
-        <StatusBar barStyle={theme === "slate" ? "light-content" : "dark-content"} backgroundColor={palette.background} />
+        <StatusBar barStyle={effectiveTheme === "slate" ? "light-content" : "dark-content"} backgroundColor={palette.background} />
         <View style={styles.centered}>
           <Text style={[styles.loadingTitle, { color: palette.onSurface }]}>Reader unavailable</Text>
           <Text style={[styles.loadingCopy, { color: palette.onSurfaceVariant }]}>{error ?? "Unknown reader error."}</Text>
@@ -198,12 +207,12 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
   }
 
   const percent = Math.round((state.currentPage / Math.max(state.totalPages, 1)) * 100);
-  const chromeBackground = resolveChromeBackground(theme, chromeHidden, palette.background, palette.surface);
+  const chromeBackground = resolveChromeBackground(effectiveTheme, chromeHidden, palette.background, palette.surface);
 
   return (
     <SafeAreaView style={[styles.root, { backgroundColor: chromeBackground }]}>
-      <StatusBar
-        barStyle={theme === "slate" ? "light-content" : "dark-content"}
+        <StatusBar
+        barStyle={effectiveTheme === "slate" ? "light-content" : "dark-content"}
         backgroundColor={chromeBackground}
         translucent={false}
       />
@@ -232,7 +241,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
       <View style={[styles.readerCanvasWrap, { backgroundColor: palette.surfaceLow }]}>
         <NativePdfView
           fileUri={state.fileUri}
-          theme={theme}
+          theme={effectiveTheme}
           pdfAppearance={pdfAppearance}
           marginMode={marginMode}
           initialPage={state.initialPage}
@@ -320,6 +329,31 @@ function resolveChromeBackground(
   return visibleColor;
 }
 
+function resolveThemeFromPdfAppearance(fallbackTheme: AppearanceTheme, pdfAppearance: PdfAppearance): AppearanceTheme {
+  switch (pdfAppearance) {
+    case "sepia":
+      return "sepia";
+    case "dark":
+    case "darkContrast":
+      return "slate";
+    case "light":
+      return "light";
+    default:
+      return fallbackTheme;
+  }
+}
+
+function pdfAppearanceFallback(theme: AppearanceTheme): PdfAppearance {
+  switch (theme) {
+    case "sepia":
+      return "sepia";
+    case "slate":
+      return "dark";
+    default:
+      return "light";
+  }
+}
+
 function pdfAppearanceLabel(mode: PdfAppearance) {
   switch (mode) {
     case "sepia":
@@ -404,7 +438,6 @@ const styles = StyleSheet.create({
   },
   readerCanvasWrap: {
     flex: 1,
-    paddingHorizontal: 18,
     paddingBottom: 12,
   },
   footer: {
