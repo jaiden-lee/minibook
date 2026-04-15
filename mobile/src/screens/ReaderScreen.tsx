@@ -64,10 +64,11 @@ export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScr
   }, []);
 
   useEffect(() => {
-    if (theme !== effectiveTheme) {
-      onThemeChange(effectiveTheme);
+    const desiredAppearance = preferredAppearanceForTheme(theme, pdfAppearance);
+    if (desiredAppearance !== pdfAppearance) {
+      setPdfAppearance(desiredAppearance);
     }
-  }, [effectiveTheme, onThemeChange, theme]);
+  }, [theme]);
 
   useEffect(() => {
     void setSetting(READER_PDF_APPEARANCE_KEY, pdfAppearance);
@@ -162,7 +163,11 @@ export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScr
       || savedAppearance === "dark"
       || savedAppearance === "darkContrast"
     ) {
-      setPdfAppearance(savedAppearance);
+      if (resolveThemeFromPdfAppearance(theme, savedAppearance) === theme) {
+        setPdfAppearance(savedAppearance);
+      } else {
+        setPdfAppearance(pdfAppearanceFallback(theme));
+      }
     } else {
       setPdfAppearance(pdfAppearanceFallback(theme));
     }
@@ -214,6 +219,7 @@ export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScr
             return "light";
         }
       })();
+      onThemeChange(resolveThemeFromPdfAppearance(theme, next));
       return next;
     });
   }
@@ -429,6 +435,14 @@ function pdfAppearanceFallback(theme: AppearanceTheme): PdfAppearance {
     default:
       return "light";
   }
+}
+
+function preferredAppearanceForTheme(theme: AppearanceTheme, currentAppearance: PdfAppearance): PdfAppearance {
+  if (theme === "slate" && (currentAppearance === "dark" || currentAppearance === "darkContrast")) {
+    return currentAppearance;
+  }
+
+  return pdfAppearanceFallback(theme);
 }
 
 function pdfAppearanceLabel(mode: PdfAppearance) {
