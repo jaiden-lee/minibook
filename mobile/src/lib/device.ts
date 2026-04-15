@@ -14,8 +14,9 @@ export async function getOrCreateDeviceId() {
 }
 
 function createLooseUuid() {
-  if ("randomUUID" in crypto && typeof crypto.randomUUID === "function") {
-    return crypto.randomUUID();
+  const cryptoApi = globalThis.crypto;
+  if (cryptoApi && typeof cryptoApi.randomUUID === "function") {
+    return cryptoApi.randomUUID();
   }
 
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
