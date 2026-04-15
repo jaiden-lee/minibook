@@ -36,6 +36,7 @@ export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScr
   const palette = mobileThemes[effectiveTheme];
   const jumpSequenceRef = useRef(0);
   const leavingRef = useRef(false);
+  const pendingThemeSyncRef = useRef<AppearanceTheme | null>(null);
   const latestProgressRef = useRef<{ page: number; totalPages: number; positionInPage: number; progress: ProgressRecord | null } | null>(null);
   const [state, setState] = useState<ReaderState | null>(null);
   const [pageJumpValue, setPageJumpValue] = useState("1");
@@ -69,6 +70,17 @@ export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScr
       setPdfAppearance(desiredAppearance);
     }
   }, [theme]);
+
+  useEffect(() => {
+    const pendingTheme = pendingThemeSyncRef.current;
+    if (!pendingTheme || pendingTheme === theme) {
+      pendingThemeSyncRef.current = null;
+      return;
+    }
+
+    pendingThemeSyncRef.current = null;
+    onThemeChange(pendingTheme);
+  }, [pdfAppearance, onThemeChange, theme]);
 
   useEffect(() => {
     void setSetting(READER_PDF_APPEARANCE_KEY, pdfAppearance);
@@ -219,7 +231,7 @@ export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScr
             return "light";
         }
       })();
-      onThemeChange(resolveThemeFromPdfAppearance(theme, next));
+      pendingThemeSyncRef.current = resolveThemeFromPdfAppearance(theme, next);
       return next;
     });
   }
