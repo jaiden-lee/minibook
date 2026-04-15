@@ -11,9 +11,10 @@ type NativePdfViewProps = {
   pdfAppearance: "light" | "sepia" | "dark" | "darkContrast";
   marginMode: "original" | "reduced";
   initialPage: number;
+  initialPositionInPage: number;
   jumpRequest: { page: number; id: number } | null;
   onLoaded: (numberOfPages: number) => void;
-  onPageChanged: (page: number, numberOfPages: number) => void;
+  onPageChanged: (page: number, numberOfPages: number, positionInPage: number) => void;
   onSingleTap: () => void;
   onError: (message: string) => void;
 };
@@ -21,7 +22,7 @@ type NativePdfViewProps = {
 type ViewerEvent =
   | { type: "viewer-ready" }
   | { type: "loaded"; totalPages: number }
-  | { type: "page-changed"; page: number; totalPages: number }
+  | { type: "page-changed"; page: number; totalPages: number; positionInPage: number }
   | { type: "single-tap" }
   | { type: "link-pressed"; url: string }
   | { type: "error"; message: string };
@@ -34,6 +35,7 @@ export function NativePdfView({
   pdfAppearance,
   marginMode,
   initialPage,
+  initialPositionInPage,
   jumpRequest,
   onLoaded,
   onPageChanged,
@@ -77,11 +79,12 @@ export function NativePdfView({
       type: "open-pdf",
       fileUri,
       initialPage,
+      initialPositionInPage,
       theme,
       pdfAppearance,
       marginMode,
     });
-  }, [fileUri, initialPage, theme, pdfAppearance, marginMode, postCommand]);
+  }, [fileUri, initialPage, initialPositionInPage, theme, pdfAppearance, marginMode, postCommand]);
 
   useEffect(() => {
     postCommand({
@@ -140,7 +143,7 @@ export function NativePdfView({
         onLoaded(payload.totalPages);
         return;
       case "page-changed":
-        onPageChanged(payload.page, payload.totalPages);
+        onPageChanged(payload.page, payload.totalPages, payload.positionInPage);
         return;
       case "single-tap":
         onSingleTap();

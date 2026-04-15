@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, BackHandler, Pressable, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
+import { ActivityIndicator, AppState, BackHandler, Pressable, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
 import type { ProgressRecord } from "@minibook/shared-types";
 import { NativePdfView } from "../components/NativePdfView";
 import { openLocalBook, saveBookProgress } from "../lib/library";
@@ -17,7 +17,9 @@ type ReaderState = {
   fileUri: string;
   totalPages: number;
   initialPage: number;
+  initialPositionInPage: number;
   currentPage: number;
+  currentPositionInPage: number;
   progress: ProgressRecord | null;
 };
 
@@ -32,6 +34,8 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
   const effectiveTheme = resolveThemeFromPdfAppearance(theme, pdfAppearance);
   const palette = mobileThemes[effectiveTheme];
   const jumpSequenceRef = useRef(0);
+  const leavingRef = useRef(false);
+  const latestProgressRef = useRef<{ page: number; totalPages: number; positionInPage: number; progress: ProgressRecord | null } | null>(null);
   const [state, setState] = useState<ReaderState | null>(null);
   const [pageJumpValue, setPageJumpValue] = useState("1");
   const [loading, setLoading] = useState(true);
@@ -47,7 +51,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener("hardwareBackPress", () => {
-      onBack();
+      void handleLeaveReader();
       return true;
     });
 
@@ -59,13 +63,6 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
   }, []);
 
   useEffect(() => {
-    const desiredAppearance = preferredAppearanceForTheme(theme, pdfAppearance);
-    if (desiredAppearance !== pdfAppearance) {
-      setPdfAppearance(desiredAppearance);
-    }
-  }, [theme]);
-
-  useEffect(() => {
     void setSetting(READER_PDF_APPEARANCE_KEY, pdfAppearance);
   }, [pdfAppearance]);
 
@@ -74,18 +71,51 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
   }, [marginMode]);
 
   useEffect(() => {
+    latestProgressRef.current = state
+      ? {
+          page: state.currentPage,
+          totalPages: state.totalPages,
+          positionInPage: state.currentPositionInPage,
+          progress: state.progress,
+        }
+      : null;
+  }, [state]);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (nextState !== "active") {
+        void flushCurrentProgress();
+      }
+    });
+
+    return () => subscription.remove();
+  }, [bookId]);
+
+  useEffect(() => {
     if (!state) {
       return;
     }
 
     const timeout = setTimeout(() => {
-      void saveBookProgress(bookId, state.currentPage, state.totalPages, 0, state.progress).then((progress) => {
+      void saveBookProgress(
+        bookId,
+        state.currentPage,
+        state.totalPages,
+        state.currentPositionInPage,
+        state.progress,
+      ).then((progress) => {
         setState((current) => (current ? { ...current, progress } : current));
       });
     }, 250);
 
     return () => clearTimeout(timeout);
-  }, [bookId, state?.currentPage, state?.totalPages]);
+  }, [bookId, state?.currentPage, state?.currentPositionInPage, state?.totalPages]);
+
+  useEffect(() => (
+    () => {
+      void flushCurrentProgress();
+    }
+  ), [bookId]);
 
   async function loadBook() {
     try {
@@ -100,7 +130,9 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
         fileUri: opened.fileUri,
         totalPages: Math.max(opened.progress?.page ?? 1, 1),
         initialPage,
+        initialPositionInPage: opened.progress?.position_in_page ?? 0,
         currentPage: initialPage,
+        currentPositionInPage: opened.progress?.position_in_page ?? 0,
         progress: opened.progress,
       });
       setPendingPageJump(null);
@@ -118,9 +150,10 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
     ]);
 
     if (
-      (savedAppearance === "light" && theme === "light")
-      || (savedAppearance === "sepia" && theme === "sepia")
-      || ((savedAppearance === "dark" || savedAppearance === "darkContrast") && theme === "slate")
+      savedAppearance === "light"
+      || savedAppearance === "sepia"
+      || savedAppearance === "dark"
+      || savedAppearance === "darkContrast"
     ) {
       setPdfAppearance(savedAppearance);
     } else {
@@ -182,6 +215,37 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
     setMarginMode((current) => (current === "original" ? "reduced" : "original"));
   }
 
+  async function flushCurrentProgress() {
+    const snapshot = latestProgressRef.current;
+    if (!snapshot) {
+      return;
+    }
+
+    const progress = await saveBookProgress(
+      bookId,
+      snapshot.page,
+      snapshot.totalPages,
+      snapshot.positionInPage,
+      snapshot.progress,
+    );
+
+    setState((current) => (current ? { ...current, progress } : current));
+  }
+
+  async function handleLeaveReader() {
+    if (leavingRef.current) {
+      return;
+    }
+
+    leavingRef.current = true;
+
+    try {
+      await flushCurrentProgress();
+    } finally {
+      onBack();
+    }
+  }
+
   if (loading) {
     return (
       <SafeAreaView style={[styles.root, { backgroundColor: palette.background }]}>
@@ -202,7 +266,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
         <View style={styles.centered}>
           <Text style={[styles.loadingTitle, { color: palette.onSurface }]}>Reader unavailable</Text>
           <Text style={[styles.loadingCopy, { color: palette.onSurfaceVariant }]}>{error ?? "Unknown reader error."}</Text>
-          <Pressable style={[styles.backButton, { backgroundColor: palette.primary }]} onPress={onBack}>
+          <Pressable style={[styles.backButton, { backgroundColor: palette.primary }]} onPress={() => void handleLeaveReader()}>
             <Text style={[styles.backButtonLabel, { color: palette.onPrimary }]}>Return to library</Text>
           </Pressable>
         </View>
@@ -221,7 +285,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
         translucent={false}
       />
       <View style={[styles.topBar, { backgroundColor: `${palette.surface}EE` }, chromeHidden ? styles.topBarHidden : null]}>
-        <Pressable onPress={onBack} style={[styles.chromeButton, { backgroundColor: palette.surfaceLow }]}>
+        <Pressable onPress={() => void handleLeaveReader()} style={[styles.chromeButton, { backgroundColor: palette.surfaceLow }]}>
           <Text style={[styles.chromeButtonLabel, { color: palette.onSurface }]}>Back</Text>
         </Pressable>
 
@@ -249,6 +313,7 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
           pdfAppearance={pdfAppearance}
           marginMode={marginMode}
           initialPage={state.initialPage}
+          initialPositionInPage={state.initialPositionInPage}
           jumpRequest={pendingPageJump}
           onLoaded={(numberOfPages) => {
             setState((current) => (current ? {
@@ -256,12 +321,13 @@ export function ReaderScreen({ bookId, theme, onBack }: ReaderScreenProps) {
               totalPages: numberOfPages,
             } : current));
           }}
-          onPageChanged={(page, numberOfPages) => {
+          onPageChanged={(page, numberOfPages, positionInPage) => {
             setPageJumpValue(String(page));
             setPendingPageJump((current) => (current?.page === page ? null : current));
             setState((current) => (current ? {
               ...current,
               currentPage: page,
+              currentPositionInPage: positionInPage,
               totalPages: numberOfPages,
             } : current));
           }}
@@ -356,14 +422,6 @@ function pdfAppearanceFallback(theme: AppearanceTheme): PdfAppearance {
     default:
       return "light";
   }
-}
-
-function preferredAppearanceForTheme(theme: AppearanceTheme, currentAppearance: PdfAppearance): PdfAppearance {
-  if (theme === "slate" && (currentAppearance === "dark" || currentAppearance === "darkContrast")) {
-    return currentAppearance;
-  }
-
-  return pdfAppearanceFallback(theme);
 }
 
 function pdfAppearanceLabel(mode: PdfAppearance) {

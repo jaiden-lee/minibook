@@ -22,6 +22,7 @@ const APP_THEME_KEY = "app_theme";
 
 export default function App() {
   const [theme, setTheme] = useState<AppearanceTheme>("light");
+  const [themeHydrated, setThemeHydrated] = useState(false);
   const [tab, setTab] = useState<AppTab>("library");
   const [books, setBooks] = useState<MobileLibraryBook[]>([]);
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
@@ -45,8 +46,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!themeHydrated) {
+      return;
+    }
     void setSetting(APP_THEME_KEY, theme);
-  }, [theme]);
+  }, [theme, themeHydrated]);
 
   async function bootstrap() {
     try {
@@ -60,6 +64,7 @@ export default function App() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to prepare the mobile library.");
     } finally {
+      setThemeHydrated(true);
       setBooting(false);
     }
   }
