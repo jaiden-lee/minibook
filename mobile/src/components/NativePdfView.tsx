@@ -13,8 +13,10 @@ type NativePdfViewProps = {
   initialPage: number;
   initialPositionInPage: number;
   jumpRequest: { page: number; id: number } | null;
+  snapshotRequest: number | null;
   onLoaded: (numberOfPages: number) => void;
   onPageChanged: (page: number, numberOfPages: number, positionInPage: number) => void;
+  onSnapshot: (page: number, numberOfPages: number, positionInPage: number) => void;
   onSingleTap: () => void;
   onError: (message: string) => void;
 };
@@ -23,6 +25,7 @@ type ViewerEvent =
   | { type: "viewer-ready" }
   | { type: "loaded"; totalPages: number }
   | { type: "page-changed"; page: number; totalPages: number; positionInPage: number }
+  | { type: "snapshot"; page: number; totalPages: number; positionInPage: number }
   | { type: "single-tap" }
   | { type: "link-pressed"; url: string }
   | { type: "error"; message: string };
@@ -37,8 +40,10 @@ export function NativePdfView({
   initialPage,
   initialPositionInPage,
   jumpRequest,
+  snapshotRequest,
   onLoaded,
   onPageChanged,
+  onSnapshot,
   onSingleTap,
   onError,
 }: NativePdfViewProps) {
@@ -118,6 +123,16 @@ export function NativePdfView({
     });
   }, [jumpRequest?.id, postCommand]);
 
+  useEffect(() => {
+    if (snapshotRequest === null) {
+      return;
+    }
+
+    postCommand({
+      type: "request-snapshot",
+    });
+  }, [snapshotRequest, postCommand]);
+
   function flushQueuedCommands() {
     readyRef.current = true;
     for (const script of queuedCommandsRef.current) {
@@ -144,6 +159,9 @@ export function NativePdfView({
         return;
       case "page-changed":
         onPageChanged(payload.page, payload.totalPages, payload.positionInPage);
+        return;
+      case "snapshot":
+        onSnapshot(payload.page, payload.totalPages, payload.positionInPage);
         return;
       case "single-tap":
         onSingleTap();

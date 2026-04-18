@@ -54,7 +54,6 @@ export async function syncBookProgressToDrive(bookId: string, progress: Progress
   const existing = await findFile(accessToken, fileName, bookFolderId);
   const metadata = {
     name: fileName,
-    parents: [bookFolderId],
     mimeType: "application/json",
     appProperties: {
       book_id: bookId,
@@ -66,7 +65,10 @@ export async function syncBookProgressToDrive(bookId: string, progress: Progress
   if (existing) {
     await uploadMultipart(accessToken, `${DRIVE_UPLOAD_API_BASE}/files/${existing.id}?uploadType=multipart`, metadata, body, "PATCH");
   } else {
-    await uploadMultipart(accessToken, `${DRIVE_UPLOAD_API_BASE}/files?uploadType=multipart`, metadata, body, "POST");
+    await uploadMultipart(accessToken, `${DRIVE_UPLOAD_API_BASE}/files?uploadType=multipart`, {
+      ...metadata,
+      parents: [bookFolderId],
+    }, body, "POST");
   }
 
   return {
@@ -173,7 +175,8 @@ async function uploadMultipart(
   });
 
   if (!response.ok) {
-    throw new Error("Unable to write progress to Google Drive.");
+    const details = await response.text();
+    throw new Error(`Unable to write progress to Google Drive. ${method} ${url} -> ${response.status} ${response.statusText}${details ? ` | ${details}` : ""}`);
   }
 }
 
@@ -188,7 +191,7 @@ async function driveJsonRequest<T>(url: string, accessToken: string, init: Reque
 
   if (!response.ok) {
     const text = await response.text();
-    throw new Error(text || "Google Drive request failed.");
+    throw new Error(`Google Drive request failed. ${init.method ?? "GET"} ${url} -> ${response.status} ${response.statusText}${text ? ` | ${text}` : ""}`);
   }
 
   return response.json() as Promise<T>;

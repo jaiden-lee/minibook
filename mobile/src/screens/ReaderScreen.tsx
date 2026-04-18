@@ -42,6 +42,8 @@ export function ReaderScreen({ bookId, theme, googleSession, onThemeChange, onBa
   const jumpSequenceRef = useRef(0);
   const leavingRef = useRef(false);
   const pendingThemeSyncRef = useRef<AppearanceTheme | null>(null);
+  const snapshotSequenceRef = useRef(0);
+  const snapshotResolverRef = useRef<((snapshot: { page: number; totalPages: number; positionInPage: number }) => void) | null>(null);
   const latestProgressRef = useRef<{ page: number; totalPages: number; positionInPage: number; progress: ProgressRecord | null } | null>(null);
   const [state, setState] = useState<ReaderState | null>(null);
   const [pageJumpValue, setPageJumpValue] = useState("1");
@@ -50,6 +52,7 @@ export function ReaderScreen({ bookId, theme, googleSession, onThemeChange, onBa
   const [viewerMessage, setViewerMessage] = useState<string | null>(null);
   const [chromeHidden, setChromeHidden] = useState(false);
   const [pendingPageJump, setPendingPageJump] = useState<{ page: number; id: number } | null>(null);
+  const [pendingSnapshotRequest, setPendingSnapshotRequest] = useState<number | null>(null);
   const [marginMode, setMarginMode] = useState<MarginMode>("original");
 
   useEffect(() => {
@@ -142,7 +145,8 @@ export function ReaderScreen({ bookId, theme, googleSession, onThemeChange, onBa
             );
             setState((current) => (current ? { ...current, progress: syncedProgress } : current));
             return;
-          } catch {
+          } catch (caught) {
+            console.log("[minibook mobile sync] debounced upload failed", caught);
             // Keep local-first behavior when offline or Google Drive is unavailable.
           }
         }
@@ -298,6 +302,22 @@ export function ReaderScreen({ bookId, theme, googleSession, onThemeChange, onBa
   }
 
   async function flushCurrentProgress() {
+    const liveSnapshot = await requestViewerSnapshot();
+    if (liveSnapshot) {
+      latestProgressRef.current = {
+        page: liveSnapshot.page,
+        totalPages: liveSnapshot.totalPages,
+        positionInPage: liveSnapshot.positionInPage,
+        progress: latestProgressRef.current?.progress ?? state?.progress ?? null,
+      };
+      setState((current) => (current ? {
+        ...current,
+        currentPage: liveSnapshot.page,
+        currentPositionInPage: liveSnapshot.positionInPage,
+        totalPages: liveSnapshot.totalPages,
+      } : current));
+    }
+
     const snapshot = latestProgressRef.current;
     if (!snapshot) {
       return;
@@ -322,7 +342,8 @@ export function ReaderScreen({ bookId, theme, googleSession, onThemeChange, onBa
           progress,
           false,
         );
-      } catch {
+      } catch (caught) {
+        console.log("[minibook mobile sync] flush upload failed", caught);
         // local-first: keep reading data locally even if sync fails
       }
     }
@@ -342,6 +363,22 @@ export function ReaderScreen({ bookId, theme, googleSession, onThemeChange, onBa
     } finally {
       onBack();
     }
+  }
+
+  function requestViewerSnapshot() {
+    return new Promise<{ page: number; totalPages: number; positionInPage: number } | null>((resolve) => {
+      snapshotSequenceRef.current += 1;
+      const requestId = snapshotSequenceRef.current;
+      snapshotResolverRef.current = resolve;
+      setPendingSnapshotRequest(requestId);
+
+      setTimeout(() => {
+        if (snapshotResolverRef.current === resolve) {
+          snapshotResolverRef.current = null;
+          resolve(null);
+        }
+      }, 180);
+    });
   }
 
   if (loading) {
@@ -413,6 +450,7 @@ export function ReaderScreen({ bookId, theme, googleSession, onThemeChange, onBa
           initialPage={state.initialPage}
           initialPositionInPage={state.initialPositionInPage}
           jumpRequest={pendingPageJump}
+          snapshotRequest={pendingSnapshotRequest}
           onLoaded={(numberOfPages) => {
             setState((current) => (current ? {
               ...current,
@@ -428,6 +466,12 @@ export function ReaderScreen({ bookId, theme, googleSession, onThemeChange, onBa
               currentPositionInPage: positionInPage,
               totalPages: numberOfPages,
             } : current));
+          }}
+          onSnapshot={(page, numberOfPages, positionInPage) => {
+            setPendingSnapshotRequest(null);
+            const resolver = snapshotResolverRef.current;
+            snapshotResolverRef.current = null;
+            resolver?.({ page, totalPages: numberOfPages, positionInPage });
           }}
           onSingleTap={() => {
             setChromeHidden((current) => !current);
