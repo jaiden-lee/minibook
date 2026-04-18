@@ -237,7 +237,13 @@ export function ReaderPage() {
         };
 
         const localResume = readLocalScrollResume(currentBookId);
+        const resolvedMatchesLocal =
+          !!opened.progress &&
+          !!effectiveProgress &&
+          opened.progress.page === effectiveProgress.page &&
+          Math.abs(opened.progress.position_in_page - effectiveProgress.position_in_page) <= 0.001;
         if (
+          resolvedMatchesLocal &&
           localResume &&
           localResume.mode === "scroll" &&
           Math.abs(localResume.zoom - zoom) < 0.001 &&
