@@ -1,20 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import * as AuthSession from "expo-auth-session";
-import * as WebBrowser from "expo-web-browser";
 import { BottomBar } from "../components/BottomBar";
 import {
-  clearStoredMobileGoogleSession,
-  createMobileGoogleSessionFromTokens,
-  exchangeGoogleCodeAsync,
-  getGoogleClientIdForPlatform,
-  getGoogleDriveScope,
-  storeMobileGoogleSession,
+  revokeGoogleAccess,
+  signInWithGoogle,
+  signOutGoogle,
   type MobileGoogleAuthSession,
+  validateMobileGoogleAuthConfig,
 } from "../lib/auth";
 import { mobileThemes, type AppearanceTheme } from "../theme";
-
-WebBrowser.maybeCompleteAuthSession();
 
 type SettingsScreenProps = {
   theme: AppearanceTheme;
@@ -36,75 +30,53 @@ export function SettingsScreen({
   const palette = mobileThemes[theme];
   const [authError, setAuthError] = useState<string | null>(null);
   const [authBusy, setAuthBusy] = useState(false);
-  const googleClientId = useMemo(() => {
-    try {
-      return getGoogleClientIdForPlatform();
-    } catch {
-      return null;
-    }
-  }, []);
-  const discovery = AuthSession.useAutoDiscovery("https://accounts.google.com");
-  const redirectUri = useMemo(() => AuthSession.makeRedirectUri({
-    scheme: "minibook",
-    path: "oauth",
-  }), []);
-  const [request, response, promptAsync] = AuthSession.useAuthRequest(
-    {
-      clientId: googleClientId ?? "missing-google-client-id",
-      redirectUri,
-      scopes: ["openid", "profile", "email", getGoogleDriveScope()],
-      responseType: AuthSession.ResponseType.Code,
-      usePKCE: true,
-      extraParams: {
-        access_type: "offline",
-        prompt: "consent",
-      },
-    },
-    discovery,
-  );
-
-  useEffect(() => {
-    if (!response || response.type !== "success" || !googleClientId || !request?.codeVerifier) {
-      if (response?.type === "error") {
-        setAuthError(response.error?.message ?? "Google sign-in failed.");
-      }
-      return;
-    }
-
-    const code = response.params.code;
-    if (!code) {
-      setAuthError("Google did not return an authorization code.");
-      return;
-    }
-
-    void completeGoogleSignIn({
-      clientId: googleClientId,
-      code,
-      codeVerifier: request.codeVerifier,
-      redirectUri,
-      onGoogleSessionChange,
-      setAuthBusy,
-      setAuthError,
-    });
-  }, [googleClientId, onGoogleSessionChange, redirectUri, request?.codeVerifier, response]);
+  const authConfig = validateMobileGoogleAuthConfig();
 
   async function handleGoogleSignIn() {
-    if (!request) {
-      setAuthError("Google auth is not configured for this platform yet.");
-      return;
-    }
-
+    setAuthBusy(true);
     setAuthError(null);
-    const result = await promptAsync();
-    if (result.type === "dismiss" || result.type === "cancel") {
+
+    try {
+      const session = await signInWithGoogle();
+      if (session) {
+        onGoogleSessionChange(session);
+      }
+    } catch (caught) {
+      console.log("[minibook mobile auth] sign-in error", caught);
+      setAuthError(formatAuthError(caught));
+    } finally {
       setAuthBusy(false);
     }
   }
 
   async function handleGoogleSignOut() {
+    setAuthBusy(true);
     setAuthError(null);
-    await clearStoredMobileGoogleSession();
-    onGoogleSignOut();
+
+    try {
+      await signOutGoogle();
+      onGoogleSignOut();
+    } catch (caught) {
+      console.log("[minibook mobile auth] sign-out error", caught);
+      setAuthError(formatAuthError(caught));
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function handleGoogleDisconnect() {
+    setAuthBusy(true);
+    setAuthError(null);
+
+    try {
+      await revokeGoogleAccess();
+      onGoogleSignOut();
+    } catch (caught) {
+      console.log("[minibook mobile auth] revoke-access error", caught);
+      setAuthError(formatAuthError(caught));
+    } finally {
+      setAuthBusy(false);
+    }
   }
 
   return (
@@ -113,7 +85,7 @@ export function SettingsScreen({
         <Text style={[styles.kicker, { color: palette.onSurfaceVariant }]}>Atmosphere</Text>
         <Text style={[styles.title, { color: palette.onSurface }]}>Settings</Text>
         <Text style={[styles.subtitle, { color: palette.onSurfaceVariant }]}>
-          Refining your sanctuary for local reading before Google auth and sync arrive on mobile.
+          Refining your sanctuary for local reading before Google Drive sync arrives on mobile.
         </Text>
 
         <View style={[styles.section, { backgroundColor: palette.surfaceLow }]}>
@@ -152,41 +124,53 @@ export function SettingsScreen({
                   {googleSession.accountName ?? "Google account connected"}
                 </Text>
                 <Text style={[styles.optionCopy, { color: palette.onSurfaceVariant }]}>
-                  {googleSession.accountEmail ?? "Drive sync is ready for the next mobile phase."}
+                  {googleSession.accountEmail ?? "Signed in and ready for Drive sync."}
                 </Text>
               </View>
-              <Pressable
-                onPress={() => void handleGoogleSignOut()}
-                style={[styles.authButton, { backgroundColor: palette.surfaceHighest }]}
-              >
-                <Text style={[styles.authButtonLabel, { color: palette.onSurface }]}>Sign out</Text>
-              </Pressable>
+              <View style={styles.authActions}>
+                <Pressable
+                  onPress={() => void handleGoogleSignOut()}
+                  style={[styles.authButton, { backgroundColor: palette.surfaceHighest }]}
+                >
+                  <Text style={[styles.authButtonLabel, { color: palette.onSurface }]}>Sign out</Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => void handleGoogleDisconnect()}
+                  style={[styles.authButton, { backgroundColor: palette.surfaceHighest }]}
+                >
+                  <Text style={[styles.authButtonLabel, { color: palette.onSurface }]}>Disconnect</Text>
+                </Pressable>
+              </View>
             </>
           ) : (
             <>
               <Text style={[styles.optionCopy, { color: palette.onSurfaceVariant, marginBottom: 12 }]}>
-                Sign in now so mobile can reuse the same Google Drive progress sync model as web.
+                Sign in now so mobile can reuse the same Google Drive progress sync model as web, without the broken browser redirect flow.
               </Text>
               <Pressable
-                disabled={!request || authBusy || !googleClientId}
+                disabled={!authConfig.valid || authBusy}
                 onPress={() => void handleGoogleSignIn()}
                 style={[
                   styles.authButton,
                   { backgroundColor: palette.primary },
-                  (!request || authBusy || !googleClientId) ? styles.authButtonDisabled : null,
+                  (!authConfig.valid || authBusy) ? styles.authButtonDisabled : null,
                 ]}
               >
                 <Text style={[styles.authButtonLabel, { color: palette.onPrimary }]}>
                   {authBusy ? "Connecting..." : "Sign in with Google"}
                 </Text>
               </Pressable>
-              {!googleClientId ? (
+              {!authConfig.valid ? (
                 <Text style={[styles.authHint, { color: palette.onSurfaceVariant }]}>
-                  Add the mobile Google OAuth client ID env vars before testing auth.
+                  Missing mobile auth env vars: {authConfig.missing.join(", ")}
                 </Text>
               ) : null}
             </>
           )}
+
+          <Text style={[styles.authHint, { color: palette.onSurfaceVariant }]}>
+            Native sign-in manages the mobile Google session. For Drive calls, the app requests fresh access tokens from the native Google SDK instead of using the broken custom-scheme browser flow.
+          </Text>
 
           {authError ? (
             <Text style={[styles.authError, { color: palette.primary }]}>
@@ -198,11 +182,11 @@ export function SettingsScreen({
         <View style={[styles.section, { backgroundColor: palette.surfaceLow }]}>
           <Text style={[styles.sectionTitle, { color: palette.onSurfaceVariant }]}>Roadmap for this mobile pass</Text>
           {[
-            "Import PDFs into app-local storage",
+            "Index PDFs from the Android library folder",
             "Render local PDFs with a mobile PDF.js viewer",
             "Save and restore local reading progress",
             "Match the web app's editorial feel on mobile",
-            "Connect Google auth before Drive sync",
+            "Use native Google sign-in before Drive sync",
           ].map((item) => (
             <View key={item} style={styles.checkRow}>
               <View style={[styles.dot, { backgroundColor: palette.primary }]} />
@@ -221,41 +205,33 @@ export function SettingsScreen({
   );
 }
 
-async function completeGoogleSignIn({
-  clientId,
-  code,
-  codeVerifier,
-  redirectUri,
-  onGoogleSessionChange,
-  setAuthBusy,
-  setAuthError,
-}: {
-  clientId: string;
-  code: string;
-  codeVerifier: string;
-  redirectUri: string;
-  onGoogleSessionChange: (session: MobileGoogleAuthSession | null) => void;
-  setAuthBusy: (busy: boolean) => void;
-  setAuthError: (message: string | null) => void;
-}) {
-  setAuthBusy(true);
-  setAuthError(null);
-
-  try {
-    const tokenResponse = await exchangeGoogleCodeAsync({
-      clientId,
-      code,
-      codeVerifier,
-      redirectUri,
-    });
-    const session = await createMobileGoogleSessionFromTokens(tokenResponse);
-    await storeMobileGoogleSession(session);
-    onGoogleSessionChange(session);
-  } catch (caught) {
-    setAuthError(caught instanceof Error ? caught.message : "Google sign-in failed.");
-  } finally {
-    setAuthBusy(false);
+function formatAuthError(caught: unknown) {
+  if (!caught || typeof caught !== "object") {
+    return "Google auth failed.";
   }
+
+  const error = caught as {
+    code?: string;
+    message?: string;
+    nativeErrorCode?: string;
+    userInfo?: unknown;
+  };
+
+  const pieces = [
+    error.code,
+    error.nativeErrorCode,
+    error.message,
+  ].filter((piece): piece is string => typeof piece === "string" && piece.length > 0);
+
+  if ("userInfo" in error && error.userInfo) {
+    try {
+      pieces.push(JSON.stringify(error.userInfo));
+    } catch {
+      // ignore non-serializable metadata
+    }
+  }
+
+  return pieces.length > 0 ? pieces.join(" | ") : "Google auth failed.";
 }
 
 const styles = StyleSheet.create({
@@ -320,12 +296,18 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     marginBottom: 12,
   },
+  authActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 12,
+  },
   authButton: {
     borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
+    flexGrow: 1,
   },
   authButtonDisabled: {
     opacity: 0.6,

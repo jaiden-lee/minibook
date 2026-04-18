@@ -1,36 +1,42 @@
 import * as SecureStore from "expo-secure-store";
 import { Platform } from "react-native";
+import {
+  GoogleSignin,
+  isErrorWithCode,
+  isSuccessResponse,
+  statusCodes,
+  type User,
+} from "@react-native-google-signin/google-signin";
 
-const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
-const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo";
 const AUTH_SESSION_KEY = "google_auth_session";
 
 export type MobileGoogleAuthSession = {
-  accessToken: string;
-  refreshToken: string | null;
-  idToken: string | null;
-  expiresAt: number | null;
-  scope: string | null;
-  tokenType: string | null;
   accountEmail: string | null;
   accountName: string | null;
   accountPicture: string | null;
+  idToken: string | null;
+  grantedScopes: string[];
+  lastAccessToken: string | null;
+  lastTokenAt: number | null;
 };
 
-type GoogleTokenResponse = {
-  access_token: string;
-  expires_in?: number;
-  refresh_token?: string;
-  id_token?: string;
-  scope?: string;
-  token_type?: string;
-};
+let configured = false;
 
-type GoogleUserInfo = {
-  email?: string;
-  name?: string;
-  picture?: string;
-};
+export function configureMobileGoogleSignin() {
+  if (configured) {
+    return;
+  }
+
+  GoogleSignin.configure({
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    scopes: [getGoogleDriveScope()],
+    offlineAccess: true,
+    forceCodeForRefreshToken: false,
+  });
+
+  configured = true;
+}
 
 export function getGoogleClientIdForPlatform() {
   const clientId = Platform.select({
@@ -48,6 +54,28 @@ export function getGoogleClientIdForPlatform() {
 
 export function getGoogleDriveScope() {
   return process.env.EXPO_PUBLIC_GOOGLE_DRIVE_SCOPE || "https://www.googleapis.com/auth/drive.file";
+}
+
+export function validateMobileGoogleAuthConfig() {
+  const missing: string[] = [];
+
+  if (!process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID) {
+    missing.push("EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID");
+  }
+  if (!process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID) {
+    missing.push("EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID");
+  }
+  if (!process.env.EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME) {
+    missing.push("EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME");
+  }
+  if (!process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID) {
+    missing.push("EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID");
+  }
+
+  return {
+    valid: missing.length === 0,
+    missing,
+  };
 }
 
 export async function getStoredMobileGoogleSession() {
@@ -72,139 +100,83 @@ export async function clearStoredMobileGoogleSession() {
   await SecureStore.deleteItemAsync(AUTH_SESSION_KEY);
 }
 
-export async function exchangeGoogleCodeAsync({
-  clientId,
-  code,
-  codeVerifier,
-  redirectUri,
-}: {
-  clientId: string;
-  code: string;
-  codeVerifier: string;
-  redirectUri: string;
-}) {
-  const body = new URLSearchParams({
-    client_id: clientId,
-    code,
-    code_verifier: codeVerifier,
-    grant_type: "authorization_code",
-    redirect_uri: redirectUri,
-  });
+export async function restoreMobileGoogleSession() {
+  configureMobileGoogleSignin();
 
-  const response = await fetch(GOOGLE_TOKEN_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: body.toString(),
-  });
+  try {
+    const response = await GoogleSignin.signInSilently();
+    if (response.type === "success") {
+      const tokens = await GoogleSignin.getTokens();
+      const session = mapGoogleUserToSession(response.data, tokens.accessToken);
+      await storeMobileGoogleSession(session);
+      return session;
+    }
 
-  const payload = await response.json() as GoogleTokenResponse | { error?: string; error_description?: string };
-  if (!response.ok || !("access_token" in payload)) {
-    throw new Error(("error_description" in payload && payload.error_description) || "Google token exchange failed.");
+    if (response.type === "noSavedCredentialFound") {
+      await clearStoredMobileGoogleSession();
+      return null;
+    }
+  } catch (caught) {
+    if (isErrorWithCode(caught) && caught.code === statusCodes.SIGN_IN_REQUIRED) {
+      await clearStoredMobileGoogleSession();
+      return null;
+    }
+
+    throw caught;
   }
 
-  return payload;
+  return null;
 }
 
-export async function refreshGoogleAccessTokenAsync({
-  clientId,
-  refreshToken,
-}: {
-  clientId: string;
-  refreshToken: string;
-}) {
-  const body = new URLSearchParams({
-    client_id: clientId,
-    grant_type: "refresh_token",
-    refresh_token: refreshToken,
-  });
+export async function signInWithGoogle() {
+  configureMobileGoogleSignin();
 
-  const response = await fetch(GOOGLE_TOKEN_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: body.toString(),
-  });
-
-  const payload = await response.json() as GoogleTokenResponse | { error?: string; error_description?: string };
-  if (!response.ok || !("access_token" in payload)) {
-    throw new Error(("error_description" in payload && payload.error_description) || "Google access token refresh failed.");
+  await GoogleSignin.hasPlayServices({ showPlayServicesUpdateDialog: true });
+  const response = await GoogleSignin.signIn();
+  if (!isSuccessResponse(response)) {
+    return null;
   }
 
-  return payload;
+  const tokens = await GoogleSignin.getTokens();
+  const session = mapGoogleUserToSession(response.data, tokens.accessToken);
+  await storeMobileGoogleSession(session);
+  return session;
 }
 
-export async function fetchGoogleUserInfo(accessToken: string) {
-  const response = await fetch(GOOGLE_USERINFO_URL, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
-  });
+export async function signOutGoogle() {
+  configureMobileGoogleSignin();
+  await GoogleSignin.signOut();
+  await clearStoredMobileGoogleSession();
+}
 
-  if (!response.ok) {
-    throw new Error("Unable to load Google account profile.");
+export async function revokeGoogleAccess() {
+  configureMobileGoogleSignin();
+  await GoogleSignin.revokeAccess();
+  await GoogleSignin.signOut();
+  await clearStoredMobileGoogleSession();
+}
+
+export async function getValidMobileGoogleAccessToken() {
+  configureMobileGoogleSignin();
+
+  const tokens = await GoogleSignin.getTokens();
+  const currentUser = GoogleSignin.getCurrentUser();
+  if (currentUser) {
+    const session = mapGoogleUserToSession(currentUser, tokens.accessToken);
+    await storeMobileGoogleSession(session);
   }
 
-  return response.json() as Promise<GoogleUserInfo>;
+  return tokens.accessToken;
 }
 
-export async function createMobileGoogleSessionFromTokens(tokenResponse: GoogleTokenResponse) {
-  const userInfo = await fetchGoogleUserInfo(tokenResponse.access_token);
-
+function mapGoogleUserToSession(user: User, accessToken: string | null): MobileGoogleAuthSession {
   return {
-    accessToken: tokenResponse.access_token,
-    refreshToken: tokenResponse.refresh_token ?? null,
-    idToken: tokenResponse.id_token ?? null,
-    expiresAt: tokenResponse.expires_in
-      ? Date.now() + (tokenResponse.expires_in * 1000)
-      : null,
-    scope: tokenResponse.scope ?? null,
-    tokenType: tokenResponse.token_type ?? null,
-    accountEmail: userInfo.email ?? null,
-    accountName: userInfo.name ?? null,
-    accountPicture: userInfo.picture ?? null,
-  } satisfies MobileGoogleAuthSession;
-}
-
-export function isGoogleSessionExpired(session: MobileGoogleAuthSession | null) {
-  if (!session?.expiresAt) {
-    return true;
-  }
-
-  return session.expiresAt <= (Date.now() + 60_000);
-}
-
-export async function getValidMobileGoogleSession(session: MobileGoogleAuthSession | null) {
-  if (!session) {
-    return null;
-  }
-
-  if (!isGoogleSessionExpired(session)) {
-    return session;
-  }
-
-  if (!session.refreshToken) {
-    return null;
-  }
-
-  const refreshedTokens = await refreshGoogleAccessTokenAsync({
-    clientId: getGoogleClientIdForPlatform(),
-    refreshToken: session.refreshToken,
-  });
-
-  const refreshedSession = {
-    ...session,
-    accessToken: refreshedTokens.access_token,
-    expiresAt: refreshedTokens.expires_in
-      ? Date.now() + (refreshedTokens.expires_in * 1000)
-      : session.expiresAt,
-    idToken: refreshedTokens.id_token ?? session.idToken,
-    scope: refreshedTokens.scope ?? session.scope,
-    tokenType: refreshedTokens.token_type ?? session.tokenType,
-  } satisfies MobileGoogleAuthSession;
-
-  await storeMobileGoogleSession(refreshedSession);
-  return refreshedSession;
+    accountEmail: user.user.email ?? null,
+    accountName: user.user.name ?? null,
+    accountPicture: user.user.photo ?? null,
+    idToken: user.idToken ?? null,
+    grantedScopes: user.scopes ?? [],
+    lastAccessToken: accessToken,
+    lastTokenAt: accessToken ? Date.now() : null,
+  };
 }

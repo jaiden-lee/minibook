@@ -8,7 +8,7 @@ import type { BookRecord, ProgressRecord } from "@minibook/shared-types";
 import { LibraryScreen } from "./src/screens/LibraryScreen";
 import { ReaderScreen } from "./src/screens/ReaderScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
-import { clearStoredMobileGoogleSession, getStoredMobileGoogleSession, getValidMobileGoogleSession, type MobileGoogleAuthSession } from "./src/lib/auth";
+import { configureMobileGoogleSignin, restoreMobileGoogleSession, type MobileGoogleAuthSession } from "./src/lib/auth";
 import { ensureDatabase, getSetting, listLibraryBooks, setSetting } from "./src/lib/database";
 import { AppearanceTheme, mobileThemes } from "./src/theme";
 
@@ -58,11 +58,12 @@ export default function App() {
     try {
       setError(null);
       await ensureDatabase();
+      configureMobileGoogleSignin();
       const savedTheme = await getSetting(APP_THEME_KEY);
       if (savedTheme === "light" || savedTheme === "sepia" || savedTheme === "slate") {
         setTheme(savedTheme);
       }
-      const session = await getValidMobileGoogleSession(await getStoredMobileGoogleSession());
+      const session = await restoreMobileGoogleSession();
       setGoogleSession(session);
       await refreshLibrary();
     } catch (caught) {
@@ -145,10 +146,7 @@ export default function App() {
           googleSession={googleSession}
           onBackToLibrary={() => setTab("library")}
           onGoogleSessionChange={setGoogleSession}
-          onGoogleSignOut={() => {
-            void clearStoredMobileGoogleSession();
-            setGoogleSession(null);
-          }}
+          onGoogleSignOut={() => setGoogleSession(null)}
           onThemeChange={setTheme}
         />
       )}

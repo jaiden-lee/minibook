@@ -78,7 +78,7 @@ The mobile app uses native Google OAuth clients, not the local Express server OA
 Current mobile identifiers:
 - Android package: `com.jaide.minibook`
 - iOS bundle identifier: `com.jaide.minibook`
-- App scheme / redirect base: `minibook`
+- App scheme: `minibook`
 
 Create:
 
@@ -93,12 +93,15 @@ Required values:
 ```env
 EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=your_android_oauth_client_id_here
 EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=your_ios_oauth_client_id_here
+EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME=com.googleusercontent.apps.your_ios_reversed_client_id_here
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=your_web_oauth_client_id_here
 EXPO_PUBLIC_GOOGLE_DRIVE_SCOPE=https://www.googleapis.com/auth/drive.file
 ```
 
 Notes:
 - these client IDs are public identifiers, not secrets
 - mobile does not need a Google client secret in the app
+- `EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME` is the reversed iOS client ID used by the native config plugin
 - `mobile/.env` is gitignored
 
 ### Google Cloud Clients For Mobile
@@ -114,7 +117,12 @@ Create separate OAuth clients in Google Cloud for each platform:
 - type: `iOS`
 - bundle ID: `com.jaide.minibook`
 
-Do not reuse one mobile client for both platforms.
+3. Web client
+- type: `Web application`
+- used by native Google Sign-In to provide `webClientId`
+- needed for `idToken` and server-auth-code / offline-access style behavior
+
+Do not reuse one mobile client for both platforms. You should end up with Android, iOS, and Web OAuth client IDs in the same Google Cloud project.
 
 ### Android SHA-1
 
@@ -127,17 +135,31 @@ cd mobile\android
 
 Use the `SHA1` value from the debug variant you are actually running.
 
-### Mobile Redirect Flow
+### iOS URL Scheme
 
-Mobile auth redirects back into the app via the app scheme:
+The native Expo config plugin for `@react-native-google-signin/google-signin` needs the iOS reversed client ID:
 
-- scheme: `minibook`
-- redirect form used by Expo AuthSession: `minibook://oauth`
+- example form: `com.googleusercontent.apps.1234567890-abcdef`
+
+Get it from the iOS OAuth client in Google Cloud and place it in:
+
+```env
+EXPO_PUBLIC_GOOGLE_IOS_URL_SCHEME=...
+```
+
+### Mobile Auth Flow
+
+Mobile auth no longer uses the broken browser custom-scheme OAuth path.
+
+Instead:
+- Android and iOS use native Google Sign-In
+- the app stores session metadata locally in secure storage
+- when the app needs Drive access later, it asks the native Google SDK for fresh access tokens
 
 This is separate from the web callback:
 
 - web/server callback: `http://localhost:3000/api/auth/callback`
-- mobile callback: native deep link into the app
+- mobile sign-in: native Google Sign-In SDK flow
 
 ## Development
 
@@ -189,6 +211,7 @@ Mobile auth requires:
 - the app installed as a dev build
 - `mobile/.env` populated
 - Google Cloud Android/iOS OAuth clients created first
+- a native rebuild after adding the Google Sign-In package or changing the config plugin
 
 ## Bundled Local Run
 
@@ -291,12 +314,17 @@ npm run start:server
 
 ### Mobile Google Sign-In
 
-1. Create the Android and iOS mobile OAuth clients in Google Cloud
+1. Create the Android, iOS, and Web OAuth clients in Google Cloud
 2. Fill in `mobile/.env`
-3. Run the mobile dev client
+3. Rebuild the native app:
+   ```powershell
+   cd mobile
+   npx expo run:android
+   ```
+4. Run the mobile dev client
 4. Open mobile Settings
 5. Tap `Sign in with Google`
-6. Complete the native browser auth flow
+6. Complete the native Google sign-in flow
 7. Confirm Settings shows the connected Google account
 
 ## Important Caveat
