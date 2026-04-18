@@ -4,6 +4,7 @@ export default {
   expo: {
     name: "minibook",
     slug: "minibook",
+    entryPoint: "./index.js",
     scheme: "minibook",
     version: "0.1.0",
     orientation: "portrait",
