@@ -8,6 +8,7 @@ import type { BookRecord, ProgressRecord } from "@minibook/shared-types";
 import { LibraryScreen } from "./src/screens/LibraryScreen";
 import { ReaderScreen } from "./src/screens/ReaderScreen";
 import { SettingsScreen } from "./src/screens/SettingsScreen";
+import { clearStoredMobileGoogleSession, getStoredMobileGoogleSession, getValidMobileGoogleSession, type MobileGoogleAuthSession } from "./src/lib/auth";
 import { ensureDatabase, getSetting, listLibraryBooks, setSetting } from "./src/lib/database";
 import { AppearanceTheme, mobileThemes } from "./src/theme";
 
@@ -26,6 +27,7 @@ export default function App() {
   const [tab, setTab] = useState<AppTab>("library");
   const [books, setBooks] = useState<MobileLibraryBook[]>([]);
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
+  const [googleSession, setGoogleSession] = useState<MobileGoogleAuthSession | null>(null);
   const [booting, setBooting] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [fontsLoaded] = useFonts({
@@ -60,6 +62,8 @@ export default function App() {
       if (savedTheme === "light" || savedTheme === "sepia" || savedTheme === "slate") {
         setTheme(savedTheme);
       }
+      const session = await getValidMobileGoogleSession(await getStoredMobileGoogleSession());
+      setGoogleSession(session);
       await refreshLibrary();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Unable to prepare the mobile library.");
@@ -138,7 +142,13 @@ export default function App() {
       ) : (
         <SettingsScreen
           theme={theme}
+          googleSession={googleSession}
           onBackToLibrary={() => setTab("library")}
+          onGoogleSessionChange={setGoogleSession}
+          onGoogleSignOut={() => {
+            void clearStoredMobileGoogleSession();
+            setGoogleSession(null);
+          }}
           onThemeChange={setTheme}
         />
       )}

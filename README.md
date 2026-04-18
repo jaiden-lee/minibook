@@ -2,9 +2,10 @@
 
 `minibook` is a local-first PDF reader. PDFs stay on the device, and only reading progress is synced through Google Drive.
 
-The app now has two parts:
+The app now has three parts:
 - `web/`: the React + Vite frontend
 - `server/`: a local Express server that handles Google OAuth, refresh tokens, and Drive API access
+- `mobile/`: Expo app with a local-first Android/iOS reader and native Google OAuth setup in progress
 
 This keeps the UX bundled into one local app while moving refresh-token handling out of the browser.
 
@@ -12,7 +13,7 @@ This keeps the UX bundled into one local app while moving refresh-token handling
 
 - `web/`: React + Vite SPA
 - `server/`: local Express server for OAuth and Drive
-- `mobile/`: future Expo app
+- `mobile/`: Expo mobile app
 - `packages/shared-types`: shared TypeScript types
 - `packages/sync-core`: sync and progress logic
 
@@ -70,6 +71,74 @@ Important:
 - the callback must point to the Express server
 - if you previously configured browser-only GIS origins for the old flow, those are no longer the important part for auth
 
+## Mobile OAuth Setup
+
+The mobile app uses native Google OAuth clients, not the local Express server OAuth flow.
+
+Current mobile identifiers:
+- Android package: `com.jaide.minibook`
+- iOS bundle identifier: `com.jaide.minibook`
+- App scheme / redirect base: `minibook`
+
+Create:
+
+`mobile/.env`
+
+You can copy from:
+
+`mobile/.env.example`
+
+Required values:
+
+```env
+EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=your_android_oauth_client_id_here
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=your_ios_oauth_client_id_here
+EXPO_PUBLIC_GOOGLE_DRIVE_SCOPE=https://www.googleapis.com/auth/drive.file
+```
+
+Notes:
+- these client IDs are public identifiers, not secrets
+- mobile does not need a Google client secret in the app
+- `mobile/.env` is gitignored
+
+### Google Cloud Clients For Mobile
+
+Create separate OAuth clients in Google Cloud for each platform:
+
+1. Android client
+- type: `Android`
+- package name: `com.jaide.minibook`
+- SHA-1: from your current Android signing config
+
+2. iOS client
+- type: `iOS`
+- bundle ID: `com.jaide.minibook`
+
+Do not reuse one mobile client for both platforms.
+
+### Android SHA-1
+
+For the current Expo Android dev build:
+
+```powershell
+cd mobile\android
+.\gradlew signingReport
+```
+
+Use the `SHA1` value from the debug variant you are actually running.
+
+### Mobile Redirect Flow
+
+Mobile auth redirects back into the app via the app scheme:
+
+- scheme: `minibook`
+- redirect form used by Expo AuthSession: `minibook://oauth`
+
+This is separate from the web callback:
+
+- web/server callback: `http://localhost:3000/api/auth/callback`
+- mobile callback: native deep link into the app
+
 ## Development
 
 Run the local server:
@@ -94,6 +163,32 @@ How dev works:
 - the frontend can call `/api/...` without caring about ports
 
 No nginx is needed.
+
+## Mobile Development
+
+Install workspace dependencies from the repo root:
+
+```bash
+npm install
+```
+
+Then run the Expo dev client:
+
+```bash
+npm run dev:mobile
+```
+
+For Android native rebuilds after dependency/config changes:
+
+```bash
+cd mobile
+npx expo run:android
+```
+
+Mobile auth requires:
+- the app installed as a dev build
+- `mobile/.env` populated
+- Google Cloud Android/iOS OAuth clients created first
 
 ## Bundled Local Run
 
@@ -193,6 +288,16 @@ npm run start:server
 4. Close and reopen the app
 5. Confirm you do not need to re-consent every time
 6. Confirm syncing still works
+
+### Mobile Google Sign-In
+
+1. Create the Android and iOS mobile OAuth clients in Google Cloud
+2. Fill in `mobile/.env`
+3. Run the mobile dev client
+4. Open mobile Settings
+5. Tap `Sign in with Google`
+6. Complete the native browser auth flow
+7. Confirm Settings shows the connected Google account
 
 ## Important Caveat
 

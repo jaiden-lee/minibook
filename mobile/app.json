@@ -17,7 +17,8 @@
       "@config-plugins/react-native-pdf"
     ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.jaide.minibook"
     },
     "android": {
       "package": "com.jaide.minibook"
