@@ -117,6 +117,7 @@ export default function App() {
       <ReaderScreen
         bookId={selectedBookId}
         theme={theme}
+        googleSession={googleSession}
         onThemeChange={setTheme}
         onBack={() => {
           setSelectedBookId(null);

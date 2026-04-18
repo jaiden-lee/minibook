@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, AppState, BackHandler, Pressable, SafeAreaView, StatusBar, StyleSheet, Text, TextInput, View } from "react-native";
+import { resolveProgressRecord } from "@minibook/sync-core";
 import type { ProgressRecord } from "@minibook/shared-types";
 import { NativePdfView } from "../components/NativePdfView";
+import { readRemoteBookProgress, syncBookProgressToDrive } from "../lib/driveSync";
+import type { MobileGoogleAuthSession } from "../lib/auth";
+import { getOrCreateDeviceId } from "../lib/device";
 import { openLocalBook, saveBookProgress } from "../lib/library";
 import { mobileThemes, type AppearanceTheme } from "../theme";
 import { getSetting, setSetting } from "../lib/database";
@@ -9,6 +13,7 @@ import { getSetting, setSetting } from "../lib/database";
 type ReaderScreenProps = {
   bookId: string;
   theme: AppearanceTheme;
+  googleSession: MobileGoogleAuthSession | null;
   onThemeChange: (theme: AppearanceTheme) => void;
   onBack: () => void;
 };
@@ -30,7 +35,7 @@ type MarginMode = "original" | "reduced";
 const READER_PDF_APPEARANCE_KEY = "reader_pdf_appearance";
 const READER_MARGIN_MODE_KEY = "reader_margin_mode";
 
-export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScreenProps) {
+export function ReaderScreen({ bookId, theme, googleSession, onThemeChange, onBack }: ReaderScreenProps) {
   const [pdfAppearance, setPdfAppearance] = useState<PdfAppearance>(pdfAppearanceFallback(theme));
   const effectiveTheme = resolveThemeFromPdfAppearance(theme, pdfAppearance);
   const palette = mobileThemes[effectiveTheme];
@@ -123,13 +128,31 @@ export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScr
         state.totalPages,
         state.currentPositionInPage,
         state.progress,
-      ).then((progress) => {
+      ).then(async (progress) => {
+        if (googleSession) {
+          try {
+            await syncBookProgressToDrive(bookId, progress);
+            const syncedProgress = await saveBookProgress(
+              bookId,
+              progress.page,
+              state.totalPages,
+              progress.position_in_page,
+              progress,
+              false,
+            );
+            setState((current) => (current ? { ...current, progress: syncedProgress } : current));
+            return;
+          } catch {
+            // Keep local-first behavior when offline or Google Drive is unavailable.
+          }
+        }
+
         setState((current) => (current ? { ...current, progress } : current));
       });
     }, 250);
 
     return () => clearTimeout(timeout);
-  }, [bookId, state?.currentPage, state?.currentPositionInPage, state?.totalPages]);
+  }, [bookId, googleSession, state?.currentPage, state?.currentPositionInPage, state?.totalPages]);
 
   useEffect(() => (
     () => {
@@ -143,17 +166,51 @@ export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScr
       setError(null);
       setViewerMessage(null);
       const opened = await openLocalBook(bookId);
-      const initialPage = opened.progress?.page ?? 1;
+      let resolvedProgress = opened.progress ?? null;
+
+      if (googleSession) {
+        try {
+          const deviceId = await getOrCreateDeviceId();
+          const remote = await readRemoteBookProgress(bookId);
+          const remoteRecords = remote.files
+            .map((file) => file.record)
+            .filter((record): record is ProgressRecord => !!record);
+          const resolved = resolveProgressRecord(opened.progress, remoteRecords, deviceId);
+
+          if (resolved.record) {
+            resolvedProgress = resolved.record;
+
+            if (
+              !opened.progress
+              || resolved.record.page !== opened.progress.page
+              || Math.abs(resolved.record.position_in_page - opened.progress.position_in_page) > 0.01
+            ) {
+              resolvedProgress = await saveBookProgress(
+                bookId,
+                resolved.record.page,
+                Math.max(opened.progress?.page ?? 1, resolved.record.page),
+                resolved.record.position_in_page,
+                resolved.record,
+                false,
+              );
+            }
+          }
+        } catch {
+          // Offline or signed-in Drive access failure should never block reading.
+        }
+      }
+
+      const initialPage = resolvedProgress?.page ?? 1;
       setPageJumpValue(String(initialPage));
       setState({
         title: opened.book.title,
         fileUri: opened.fileUri,
-        totalPages: Math.max(opened.progress?.page ?? 1, 1),
+        totalPages: Math.max(resolvedProgress?.page ?? 1, 1),
         initialPage,
-        initialPositionInPage: opened.progress?.position_in_page ?? 0,
+        initialPositionInPage: resolvedProgress?.position_in_page ?? 0,
         currentPage: initialPage,
-        currentPositionInPage: opened.progress?.position_in_page ?? 0,
-        progress: opened.progress,
+        currentPositionInPage: resolvedProgress?.position_in_page ?? 0,
+        progress: resolvedProgress,
       });
       setPendingPageJump(null);
     } catch (caught) {
@@ -246,13 +303,29 @@ export function ReaderScreen({ bookId, theme, onThemeChange, onBack }: ReaderScr
       return;
     }
 
-    const progress = await saveBookProgress(
+    let progress = await saveBookProgress(
       bookId,
       snapshot.page,
       snapshot.totalPages,
       snapshot.positionInPage,
       snapshot.progress,
     );
+
+    if (googleSession) {
+      try {
+        await syncBookProgressToDrive(bookId, progress);
+        progress = await saveBookProgress(
+          bookId,
+          progress.page,
+          snapshot.totalPages,
+          progress.position_in_page,
+          progress,
+          false,
+        );
+      } catch {
+        // local-first: keep reading data locally even if sync fails
+      }
+    }
 
     setState((current) => (current ? { ...current, progress } : current));
   }

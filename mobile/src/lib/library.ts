@@ -147,6 +147,7 @@ export async function saveBookProgress(
   totalPages: number,
   positionInPage: number,
   previous?: ProgressRecord | null,
+  pendingSync = true,
 ) {
   const now = Date.now();
   const progress: ProgressRecord = {
@@ -158,7 +159,7 @@ export async function saveBookProgress(
     logical_progress: computeLogicalProgress(page, totalPages),
     opened_at: previous?.opened_at ?? now,
     updated_at: now,
-    pending_sync: true,
+    pending_sync: pendingSync,
   };
 
   await upsertProgress(progress);

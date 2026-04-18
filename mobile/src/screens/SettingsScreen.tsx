@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { BottomBar } from "../components/BottomBar";
 import {
-  revokeGoogleAccess,
   signInWithGoogle,
   signOutGoogle,
   type MobileGoogleAuthSession,
@@ -64,21 +63,6 @@ export function SettingsScreen({
     }
   }
 
-  async function handleGoogleDisconnect() {
-    setAuthBusy(true);
-    setAuthError(null);
-
-    try {
-      await revokeGoogleAccess();
-      onGoogleSignOut();
-    } catch (caught) {
-      console.log("[minibook mobile auth] revoke-access error", caught);
-      setAuthError(formatAuthError(caught));
-    } finally {
-      setAuthBusy(false);
-    }
-  }
-
   return (
     <View style={[styles.root, { backgroundColor: palette.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -127,20 +111,12 @@ export function SettingsScreen({
                   {googleSession.accountEmail ?? "Signed in and ready for Drive sync."}
                 </Text>
               </View>
-              <View style={styles.authActions}>
-                <Pressable
-                  onPress={() => void handleGoogleSignOut()}
-                  style={[styles.authButton, { backgroundColor: palette.surfaceHighest }]}
-                >
-                  <Text style={[styles.authButtonLabel, { color: palette.onSurface }]}>Sign out</Text>
-                </Pressable>
-                <Pressable
-                  onPress={() => void handleGoogleDisconnect()}
-                  style={[styles.authButton, { backgroundColor: palette.surfaceHighest }]}
-                >
-                  <Text style={[styles.authButtonLabel, { color: palette.onSurface }]}>Disconnect</Text>
-                </Pressable>
-              </View>
+              <Pressable
+                onPress={() => void handleGoogleSignOut()}
+                style={[styles.authButton, { backgroundColor: palette.surfaceHighest }]}
+              >
+                <Text style={[styles.authButtonLabel, { color: palette.onSurface }]}>Sign out</Text>
+              </Pressable>
             </>
           ) : (
             <>
@@ -296,18 +272,12 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     marginBottom: 12,
   },
-  authActions: {
-    flexDirection: "row",
-    gap: 10,
-    marginBottom: 12,
-  },
   authButton: {
     borderRadius: 18,
     paddingHorizontal: 16,
     paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-    flexGrow: 1,
   },
   authButtonDisabled: {
     opacity: 0.6,
